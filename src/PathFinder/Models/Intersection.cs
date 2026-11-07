@@ -1,6 +1,6 @@
 namespace PathFinder.Models;
 
-public class Intersection
+public class Intersection : System.IComparable<Intersection>
 {
     public int Id { get; set; }
 
@@ -14,4 +14,7 @@ public class Intersection
         X = x;
         Y = y;
     }
+
+    // QuikGraph's undirected edges need comparable vertices (and the lower one first), so order by Id.
+    public int CompareTo(Intersection? other) => other is null ? 1 : Id.CompareTo(other.Id);
 }
