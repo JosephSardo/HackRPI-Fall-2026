@@ -26,8 +26,14 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     [ObservableProperty] private string _joinAddress = "";
     [ObservableProperty] private string? _status;
     [ObservableProperty] private bool _isBusy;
-    [ObservableProperty] private bool _isHost;
-    [ObservableProperty] private bool _matchStarted;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NeedsMorePlayers))]
+    private bool _isHost;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartMatch))]
+    private bool _matchStarted;
+
     [ObservableProperty] private string? _hostAddresses;
 
     [ObservableProperty]
@@ -35,6 +41,10 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     private bool _isInLobby;
 
     public bool IsInMenu => !IsInLobby;
+
+    /// <summary>Host's Start button: the host refuses to start with fewer than <see cref="Protocol.MinPlayers"/> players.</summary>
+    public bool CanStartMatch => !MatchStarted && Players.Count >= Protocol.MinPlayers;
+    public bool NeedsMorePlayers => IsHost && Players.Count < Protocol.MinPlayers;
 
     public ObservableCollection<string> Players { get; } = [];
 
@@ -133,6 +143,8 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
             var tags = (p.IsHost ? " (host)" : "") + (p.Id == _client.PlayerId ? " (you)" : "");
             Players.Add(p.Name + tags);
         }
+        OnPropertyChanged(nameof(CanStartMatch));
+        OnPropertyChanged(nameof(NeedsMorePlayers));
     }
 
     // ---- match flow: Playing -> Waiting -> Results (timed) -> next round, or Summary -> lobby

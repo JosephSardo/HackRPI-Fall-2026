@@ -8,6 +8,7 @@ public static class Protocol
     /// <summary>Bump when messages change, so mismatched builds are turned away instead of misbehaving.</summary>
     public const int Version = 3;
     public const int DefaultPort = 5050;
+    public const int MinPlayers = 2;
     public const int MaxPlayers = 8;
 }
 

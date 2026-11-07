@@ -248,7 +248,7 @@ public sealed class GameHost : IDisposable
         {
             case PingMessage ping:
                 return SendAsync(peer, new PongMessage(ping.Seq));
-            case StartMatchMessage when player.IsHost && _match is null:
+            case StartMatchMessage when player.IsHost && _match is null && _players.Count >= Protocol.MinPlayers:
                 _match = new Match(_rules, _players.Select(p => p.Info!), TotalRounds,
                                    (int)RoundDuration.TotalSeconds, (int)ResultsDuration.TotalSeconds);
                 return ApplyAsync(_match.Start());
