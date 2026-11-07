@@ -3,7 +3,8 @@
              xmlns:vm="using:PathFinder.ViewModels"
              xmlns:sys="using:System"
              x:Class="PathFinder.Views.ResultsView"
-             x:DataType="vm:ResultsViewModel">
+             x:DataType="vm:ResultsViewModel"
+             Background="LightBlue">
     <!-- Placeholder layout: restyle freely; bindings are the contract. -->
     <StackPanel Width="460" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
         <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="Bold"/>
