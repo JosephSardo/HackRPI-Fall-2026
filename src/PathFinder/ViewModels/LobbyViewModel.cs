@@ -44,6 +44,8 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     private bool _matchStarted;
 
     [ObservableProperty] private string? _hostAddresses;
+    /// <summary>Short code for the host's address (e.g. "K3QZ-7TB"); null if it has no IPv4 address.</summary>
+    [ObservableProperty] private string? _gameCode;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInMenu))]
@@ -69,9 +71,10 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
             await ConnectAsync("127.0.0.1", _host.Port, _host.HostKey);
             IsHost = true;
             var addresses = NetInfo.LanAddresses();
+            GameCode = addresses.Select(Network.GameCode.FromAddress).FirstOrDefault(code => code is not null);
             HostAddresses = addresses.Count == 0
                 ? "No network connection found. Only players on this laptop can join."
-                : "Others join with: " + string.Join("   or   ", addresses.Take(2));
+                : (GameCode is null ? "Others join with IP: " : "Or join with IP: ") + string.Join("   or   ", addresses.Take(2));
         }
         catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
         {
@@ -93,14 +96,24 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         if (!ValidateName()) return;
         if (string.IsNullOrWhiteSpace(JoinAddress))
         {
-            Status = "Enter the host's IP address.";
+            Status = "Enter the host's game code (or IP address).";
             return;
         }
+
+        // A game code is just the host's IP in disguise; anything else is treated as an IP/host name.
+        var address = JoinAddress.Trim();
+        if (Network.GameCode.TryParse(address, out var decoded, out var looksLikeCode)) address = decoded.ToString();
+        else if (looksLikeCode)
+        {
+            Status = "That game code isn't valid. Check it for typos.";
+            return;
+        }
+
         IsBusy = true;
         Status = $"Connecting to {JoinAddress.Trim()}...";
         try
         {
-            await ConnectAsync(JoinAddress, Protocol.DefaultPort, hostKey: null);
+            await ConnectAsync(address, Protocol.DefaultPort, hostKey: null);
         }
         catch (NetworkException ex)
         {
@@ -228,6 +241,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         IsInLobby = false;
         MatchStarted = false;
         HostAddresses = null;
+        GameCode = null;
         if (_screen is not null) Show(null); // back to the lobby screen
     }
 
