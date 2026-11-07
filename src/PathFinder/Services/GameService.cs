@@ -2,6 +2,7 @@ namespace PathFinder.Services;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia.Data;
 using Avalonia.Input.TextInput;
 using PathFinder.Models;
@@ -10,6 +11,8 @@ public class GameService
 {
     public CityMap CityMap { get; private set; }
     public PlayerRoute Route { get; private set; }
+
+    private const double MinOptimalDistance = 1; //should be around 5x the average street length
 
     public GameService(
         List<(double X, double Y)> intersections,
@@ -21,7 +24,38 @@ public class GameService
     )
     {
         CityMap = MapService.CreateMap(intersections, streets);
-        Route = new(1);
+
+        List<int> intersectionIds = CityMap.Graph.Vertices.Select(i => i.Id).ToList();
+
+        if (intersectionIds.Count < 2)
+        {
+            throw new InvalidOperationException(
+                "Cannot select a starting and ending intersection: the map has fewer than two intersections."
+            );
+        }
+
+        CityMap.StartId = intersectionIds[Random.Shared.Next(intersectionIds.Count)];
+        CityMap.EndId = intersectionIds[Random.Shared.Next(intersectionIds.Count)];
+
+        int attempts = 0;
+        while(attempts < 100 && 
+              (CityMap.StartId == CityMap.EndId ||
+              PathfindingService.FindOptimalDistance(CityMap) < MinOptimalDistance))
+        {
+            CityMap.EndId = intersectionIds[Random.Shared.Next(intersectionIds.Count)];
+            attempts++;
+        }
+
+        if(attempts == 100)
+        {
+            throw new InvalidOperationException(
+                "Could not find a valid starting/ending intersection combination. Select a larger map region."
+            );
+        }
+
+        double? optimalDistance = PathfindingService.FindOptimalDistance(CityMap);
+
+        Route = new(CityMap.StartId);
     }
 
     //sets the starting node for the map. Also resets the PlayerRoute object
