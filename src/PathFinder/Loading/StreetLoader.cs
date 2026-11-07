@@ -1,13 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using PathFinder.Models;
 
-namespace Loading;
+namespace PathFinder.Loading;
 
 public class StreetLoader : IDisposable
 {
@@ -51,14 +53,47 @@ public class StreetLoader : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>Returns every street intersection within <see cref="RadiusMeters"/> of the center.</summary>
+    /// <summary>Returns every street intersection within <see cref="RadiusMeters"/> of the center, as (latitude, longitude).</summary>
     public async Task<IReadOnlyList<(double X, double Y)>> LoadIntersections(
         CancellationToken cancellationToken = default
     )
     {
+        var network = ParseNetwork(await PostQuery(BuildQuery(), cancellationToken));
+
+        var result = new List<(double X, double Y)>();
+        foreach (var id in network.Neighbors.Keys)
+        {
+            if (network.IsJunction(id) && network.Coords.TryGetValue(id, out var c) && IsInside(c))
+                result.Add((c.Lat, c.Lon));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Returns the street network within <see cref="RadiusMeters"/> of the center as a graph:
+    /// intersections, and the streets between them with their real (curve-following) lengths.
+    /// See <see cref="StreetGraph"/> for what's guaranteed.
+    /// </summary>
+    public async Task<CityMap> LoadMap(CancellationToken cancellationToken = default)
+    {
+        var network = ParseNetwork(await PostQuery(BuildQuery(), cancellationToken));
+        return BuildMap(network);
+    }
+
+    /// <summary>The raw OSM street network: node positions, and which nodes each street segment joins.</summary>
+    private sealed record Network(
+        Dictionary<long, (double Lat, double Lon)> Coords,
+        Dictionary<long, HashSet<long>> Neighbors)
+    {
+        // Degree >= 3 means a real junction. Degree 2 is either a mid-street node or a spot
+        // where OSM splits one street into two ways, and degree 1 is a dead end.
+        public bool IsJunction(long id) => Neighbors[id].Count >= 3;
+    }
+
+    private string BuildQuery() =>
         // Ways with their ordered node refs, then the coordinates of every referenced node.
         // InvariantCulture so coordinates always use '.' as the decimal separator.
-        var query = string.Create(CultureInfo.InvariantCulture, $"""
+        string.Create(CultureInfo.InvariantCulture, $"""
             [out:json][timeout:25];
             way(around:{RadiusMeters},{Latitude},{Longitude})["highway"~"{StreetFilter}"];
             out body;
@@ -66,11 +101,7 @@ public class StreetLoader : IDisposable
             out skel qt;
             """);
 
-        var json = await PostQuery(query, cancellationToken);
-        return ParseIntersections(json);
-    }
-
-    private List<(double X, double Y)> ParseIntersections(string json)
+    private static Network ParseNetwork(string json)
     {
         using var doc = JsonDocument.Parse(json);
 
@@ -103,23 +134,107 @@ public class StreetLoader : IDisposable
                     break;
             }
         }
-
-        // Degree >= 3 means a real junction. Degree 2 is either a mid-street node or a spot
-        // where OSM splits one street into two ways, and degree 1 is a dead end.
-        var result = new List<(double X, double Y)>();
-        foreach (var (id, adjacent) in neighbors)
-        {
-            if (adjacent.Count < 3 || !coords.TryGetValue(id, out var c)) continue;
-
-            // Ways that only partly overlap the circle bring in nodes outside it.
-            if (DistanceMeters(Latitude, Longitude, c.Lat, c.Lon) <= RadiusMeters)
-                result.Add(new (c.Lat, c.Lon));
-        }
-        return result;
+        return new Network(coords, neighbors);
 
         HashSet<long> Neighbors(long node) =>
             neighbors.TryGetValue(node, out var set) ? set : neighbors[node] = new HashSet<long>();
     }
+
+    private CityMap BuildMap(Network network)
+    {
+        var (coords, neighbors) = (network.Coords, network.Neighbors);
+
+        // Intersections inside the circle. Ways that only partly overlap it bring in nodes outside it.
+        var junctions = neighbors.Keys
+            .Where(id => network.IsJunction(id) && coords.TryGetValue(id, out var c) && IsInside(c))
+            .ToHashSet();
+
+        // Walk from each intersection along each of its streets to the next intersection. The nodes
+        // in between have exactly 2 neighbours (curve points, or where OSM split one road into two
+        // ways), so the walk just keeps going the way it wasn't coming from. Each street is found
+        // from both ends; keying by the ordered pair keeps one, and the shortest if two roads join
+        // the same pair of intersections.
+        var streets = new Dictionary<(long A, long B), double>();
+        foreach (var start in junctions)
+        foreach (var first in neighbors[start])
+        {
+            if (WalkToIntersection(start, first) is not ({ } end, var length)) continue;
+            if (!junctions.Contains(end) || end == start) continue; // left the circle, or looped back
+
+            var key = start < end ? (start, end) : (end, start);
+            if (!streets.TryGetValue(key, out var best) || length < best) streets[key] = length;
+        }
+
+        // Cutting at the radius can strand small groups of intersections. Keep the biggest
+        // connected piece so every start/end pair has a route.
+        var keep = LargestConnectedPiece(streets.Keys);
+
+        /*
+        return new StreetGraph(
+            keep.Select(ToMetres).ToList(),
+            streets.Where(s => keep.Contains(s.Key.A))
+                   .Select(s => (s.Value, ToMetres(s.Key.A), ToMetres(s.Key.B)))
+                   .ToList());
+        */
+
+        return new CityMap("Placeholder");
+
+
+        // Follows a street from an intersection to the next one. Null at a dead end, or where the
+        // data runs out (a node without coordinates).
+        (long End, double Length)? WalkToIntersection(long start, long first)
+        {
+            long prev = start, current = first;
+            if (!coords.ContainsKey(current)) return null;
+            double length = Step(start, current);
+
+            while (neighbors[current].Count == 2)
+            {
+                var next = neighbors[current].First(n => n != prev);
+                if (!coords.ContainsKey(next)) return null;
+                length += Step(current, next);
+                (prev, current) = (current, next);
+            }
+            // Reaching a node that isn't degree 2 ends the walk; degree 1 means a dead end. Dead-end
+            // streets are dropped: no shortest route between two intersections ever uses one.
+            return neighbors[current].Count >= 3 ? (current, length) : null;
+        }
+
+        double Step(long a, long b) => DistanceMeters(coords[a].Lat, coords[a].Lon, coords[b].Lat, coords[b].Lon);
+
+        // Flat projection around the center: accurate to well under 1% over a few kilometres.
+        (double X, double Y) ToMetres(long id)
+        {
+            const double rad = Math.PI / 180;
+            var (lat, lon) = coords[id];
+            return ((lon - Longitude) * rad * EarthRadiusMeters * Math.Cos(Latitude * rad),
+                    (lat - Latitude) * rad * EarthRadiusMeters);
+        }
+    }
+
+    private static HashSet<long> LargestConnectedPiece(IEnumerable<(long A, long B)> streets)
+    {
+        var adjacent = streets.SelectMany(s => new[] { (s.A, s.B), (s.B, s.A) }).ToLookup(p => p.Item1, p => p.Item2);
+        var seen = new HashSet<long>();
+        var largest = new HashSet<long>();
+
+        foreach (var root in adjacent.Select(g => g.Key))
+        {
+            if (seen.Contains(root)) continue;
+
+            var piece = new HashSet<long> { root };
+            var queue = new Queue<long>([root]);
+            while (queue.TryDequeue(out var node))
+                foreach (var next in adjacent[node])
+                    if (piece.Add(next)) queue.Enqueue(next);
+
+            seen.UnionWith(piece);
+            if (piece.Count > largest.Count) largest = piece;
+        }
+        return largest;
+    }
+
+    private bool IsInside((double Lat, double Lon) c) => DistanceMeters(Latitude, Longitude, c.Lat, c.Lon) <= RadiusMeters;
 
     // Haversine great-circle distance.
     private static double DistanceMeters(double lat1, double lon1, double lat2, double lon2)
