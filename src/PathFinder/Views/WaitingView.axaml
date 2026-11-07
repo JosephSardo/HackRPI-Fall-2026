@@ -3,7 +3,9 @@
              xmlns:vm="using:PathFinder.ViewModels"
              xmlns:sys="using:System"
              x:Class="PathFinder.Views.WaitingView"
-             x:DataType="vm:WaitingViewModel">
+             x:DataType="vm:WaitingViewModel"
+             Background="LightBlue"
+             TextElement.Foreground="Black">
     <!-- Placeholder layout: restyle freely; bindings are the contract. -->
     <StackPanel Width="460" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
         <TextBlock Text="{Binding Message}" FontSize="24" FontWeight="Bold"/>
