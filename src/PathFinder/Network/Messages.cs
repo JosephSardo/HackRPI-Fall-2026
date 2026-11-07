@@ -29,7 +29,6 @@ public sealed record PlayerTotal(string PlayerId, string Name, double TotalScore
 [JsonDerivedType(typeof(RejectedMessage), "Rejected")]
 [JsonDerivedType(typeof(LobbyUpdateMessage), "LobbyUpdate")]
 [JsonDerivedType(typeof(StartMatchMessage), "StartMatch")]
-[JsonDerivedType(typeof(MatchStartingMessage), "MatchStarting")]
 [JsonDerivedType(typeof(PingMessage), "Ping")]
 [JsonDerivedType(typeof(PongMessage), "Pong")]
 [JsonDerivedType(typeof(RoundStartMessage), "RoundStart")]
@@ -55,8 +54,6 @@ public sealed record ReadyForNextMessage(int RoundNumber) : NetMessage;
 public sealed record WelcomeMessage(string PlayerId) : NetMessage;
 public sealed record RejectedMessage(string Reason) : NetMessage;
 public sealed record LobbyUpdateMessage(List<PlayerInfo> Players) : NetMessage;
-/// <summary>Placeholder until rounds exist: tells everyone the host started the match.</summary>
-public sealed record MatchStartingMessage : NetMessage;
 public sealed record PongMessage(long Seq) : NetMessage;
 /// <summary>
 /// A round begins now. Clients count down DurationSeconds from when this arrives

@@ -130,7 +130,7 @@ public sealed class GameClient : IDisposable
                         Players = update.Players;
                         Raise(() => PlayersChanged?.Invoke(update.Players));
                         break;
-                    case MatchStartingMessage:
+                    case RoundStartMessage: // temporary: lobby just shows "match starting" until rounds reach the client
                         Raise(() => MatchStarting?.Invoke());
                         break;
                 }
