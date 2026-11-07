@@ -134,9 +134,6 @@ public partial class PlayingView : UserControl
         {
             return;
         }
-
-        Console.WriteLine($"DataContext: {DataContext?.GetType().Name}");
-        Console.WriteLine($"Canvas size: {MapCanvas.Bounds.Width} x {MapCanvas.Bounds.Height}");
         
         if (DataContext is not PlayingViewModel vm)
             return;
