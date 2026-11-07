@@ -1,21 +1,23 @@
 using System.Threading;
 using System.Threading.Tasks;
+using PathFinder.Loading;
 using PathFinder.Models;
-using PathFinder.Network;
 
 namespace PathFinder.Services;
 
 /// <summary>
-/// The one meeting point between map loading and the game: the host calls this once when it
-/// starts hosting, owns the result as the canonical map, and sends a snapshot to every player.
-///
-/// TODO (core/map owners): build the real map here from StreetLoader + MapService: intersections
-/// and streets in metres, largest connected piece only, at most one street between any two
-/// intersections. Until then this returns the built-in test grid.
+/// The one meeting point between map loading and the game: the host calls this when a match starts
+/// (around the lobby's Location), owns the result as the canonical map, and sends a snapshot to every player.
+/// The host falls back to the built-in test grid if this throws, takes too long, or returns a map
+/// with no playable routes (e.g. an area with no streets). See Network/HostMapLoader.
 /// </summary>
 public static class MapBuilder
 {
-    public static Task<CityMap> BuildAsync(double latitude, double longitude, double radiusMeters,
-                                           CancellationToken cancellationToken = default)
-        => Task.FromResult(TestMaps.Grid());
+    /// <summary>Real streets from OpenStreetMap; see <see cref="StreetLoader.LoadMap"/> for what the map guarantees.</summary>
+    public static async Task<CityMap> BuildAsync(double latitude, double longitude, double radiusMeters,
+                                                 CancellationToken cancellationToken = default)
+    {
+        using var loader = new StreetLoader(latitude, longitude, radiusMeters);
+        return await loader.LoadMap(cancellationToken);
+    }
 }
