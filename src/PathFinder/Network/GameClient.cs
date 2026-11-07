@@ -89,7 +89,8 @@ public sealed class GameClient : IDisposable
         _ = PingLoopAsync(_cts.Token);
     }
 
-    public Task StartMatchAsync() => SendAsync(new StartMatchMessage());
+    /// <summary>Host player only: start the match. The host ignores this from anyone else.</summary>
+    public Task StartMatchAsync(int rounds, int roundSeconds) => SendAsync(new StartMatchMessage(rounds, roundSeconds));
 
     /// <summary>
     /// Sends this round's path (node IDs, start to end). Only the first call per round is sent;

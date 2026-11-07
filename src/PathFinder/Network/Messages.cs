@@ -6,10 +6,14 @@ namespace PathFinder.Network;
 public static class Protocol
 {
     /// <summary>Bump when messages change, so mismatched builds are turned away instead of misbehaving.</summary>
-    public const int Version = 3;
+    public const int Version = 4;
     public const int DefaultPort = 5050;
     public const int MinPlayers = 2;
     public const int MaxPlayers = 8;
+
+    // Match settings the host player picks in the lobby. The host clamps whatever it receives to these limits.
+    public const int DefaultRounds = 3, MinRounds = 1, MaxRounds = 10;
+    public const int DefaultRoundSeconds = 90, MinRoundSeconds = 15, MaxRoundSeconds = 600;
 }
 
 public sealed record PlayerInfo(string Id, string Name, bool IsHost);
@@ -42,8 +46,8 @@ public abstract record NetMessage;
 // Client -> host
 /// <summary>First message on every connection. HostKey is only set by the host's own client.</summary>
 public sealed record JoinMessage(string Name, int ProtocolVersion, string? HostKey = null) : NetMessage;
-/// <summary>Host player asks to leave the lobby and start the match.</summary>
-public sealed record StartMatchMessage : NetMessage;
+/// <summary>Host player starts the match with these settings (the host clamps them to the limits in <see cref="Protocol"/>).</summary>
+public sealed record StartMatchMessage(int Rounds, int RoundSeconds) : NetMessage;
 public sealed record PingMessage(long Seq) : NetMessage;
 /// <summary>The player's one submission for the round: node IDs from start to end.</summary>
 public sealed record SubmitPathMessage(int RoundNumber, List<int> NodeIds) : NetMessage;

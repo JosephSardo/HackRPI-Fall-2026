@@ -21,9 +21,7 @@ namespace PathFinder.Network;
 /// </summary>
 public sealed class GameHost : IDisposable
 {
-    public static readonly TimeSpan DefaultRoundDuration = TimeSpan.FromSeconds(90);
     public static readonly TimeSpan DefaultResultsDuration = TimeSpan.FromSeconds(10);
-    public const int TotalRounds = 3;
 
     static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(10);
     /// <summary>Extra time after the deadline for submissions still in flight.</summary>
@@ -61,17 +59,16 @@ public sealed class GameHost : IDisposable
     readonly HashSet<Peer> _connections = [];
     readonly List<Peer> _players = [];   // admitted, in join order
     Match? _match;                       // null while in the lobby
+    TimeSpan _roundDuration;             // chosen by the host player for the current match
     int _nextId;
 
     /// <summary>
     /// Starts hosting right away: listens on all interfaces (IPv4 and IPv6) and starts the loops.
     /// Throws SocketException (AddressAlreadyInUse) if the port is taken.
     /// </summary>
-    public GameHost(int port = Protocol.DefaultPort, IRoundRules? rules = null,
-                    TimeSpan? roundDuration = null, TimeSpan? resultsDuration = null)
+    public GameHost(int port = Protocol.DefaultPort, IRoundRules? rules = null, TimeSpan? resultsDuration = null)
     {
         _rules = rules ?? new StubRoundRules();
-        RoundDuration = roundDuration ?? DefaultRoundDuration;
         ResultsDuration = resultsDuration ?? DefaultResultsDuration;
         _listener = Listen(port);
         Port = port;
@@ -82,7 +79,6 @@ public sealed class GameHost : IDisposable
         _ = TickLoopAsync(_cts.Token);
     }
 
-    public TimeSpan RoundDuration { get; }
     /// <summary>How long results stay up before the next round starts on its own.</summary>
     public TimeSpan ResultsDuration { get; }
 
@@ -253,9 +249,11 @@ public sealed class GameHost : IDisposable
         {
             case PingMessage ping:
                 return SendAsync(peer, new PongMessage(ping.Seq));
-            case StartMatchMessage when player.IsHost && _match is null && _players.Count >= Protocol.MinPlayers:
-                _match = new Match(_rules, _players.Select(p => p.Info!), TotalRounds,
-                                   (int)RoundDuration.TotalSeconds, (int)ResultsDuration.TotalSeconds);
+            case StartMatchMessage start when player.IsHost && _match is null && _players.Count >= Protocol.MinPlayers:
+                var rounds = Math.Clamp(start.Rounds, Protocol.MinRounds, Protocol.MaxRounds);
+                var roundSeconds = Math.Clamp(start.RoundSeconds, Protocol.MinRoundSeconds, Protocol.MaxRoundSeconds);
+                _roundDuration = TimeSpan.FromSeconds(roundSeconds);
+                _match = new Match(_rules, _players.Select(p => p.Info!), rounds, roundSeconds, (int)ResultsDuration.TotalSeconds);
                 return ApplyAsync(_match.Start());
             case SubmitPathMessage submit when _match is not null:
                 return ApplyAsync(_match.Submit(player.Id, submit.RoundNumber, submit.NodeIds ?? []));
@@ -282,7 +280,7 @@ public sealed class GameHost : IDisposable
         foreach (var message in messages)
         {
             if (match is not null && message is RoundStartMessage start)
-                _ = TimerAsync(RoundDuration + SubmitGrace, new RoundTimeUp(match, start.RoundNumber), _cts.Token);
+                _ = TimerAsync(_roundDuration + SubmitGrace, new RoundTimeUp(match, start.RoundNumber), _cts.Token);
             if (match is not null && message is RoundResultsMessage results)
                 _ = TimerAsync(ResultsDuration, new ResultsTimeUp(match, results.RoundNumber), _cts.Token);
             await BroadcastAsync(message);

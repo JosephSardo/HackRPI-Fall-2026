@@ -21,9 +21,18 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     ViewModelBase? _screen;      // the round screen showing, if any
     RoundClock? _clock;
     string _submissions = "";
+    int _totalRounds;
 
     [ObservableProperty] private string _playerName = Environment.UserName;
     [ObservableProperty] private string _joinAddress = "";
+
+    // Match settings (host only). NumericUpDown binds to decimal?.
+    [ObservableProperty] private decimal? _rounds = Protocol.DefaultRounds;
+    [ObservableProperty] private decimal? _roundSeconds = Protocol.DefaultRoundSeconds;
+    public int MinRounds => Protocol.MinRounds;
+    public int MaxRounds => Protocol.MaxRounds;
+    public int MinRoundSeconds => Protocol.MinRoundSeconds;
+    public int MaxRoundSeconds => Protocol.MaxRoundSeconds;
     [ObservableProperty] private string? _status;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty]
@@ -107,7 +116,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     private async Task StartMatchAsync()
     {
         if (_client is null) return;
-        try { await _client.StartMatchAsync(); }
+        try { await _client.StartMatchAsync((int)(Rounds ?? Protocol.DefaultRounds), (int)(RoundSeconds ?? Protocol.DefaultRoundSeconds)); }
         catch (Exception ex) { Status = $"Couldn't start the match: {ex.Message}"; }
     }
 
@@ -153,6 +162,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     {
         if (_client is null) return;
         MatchStarted = true;
+        _totalRounds = start.TotalRounds;
         _clock = new RoundClock(TimeSpan.FromSeconds(start.DurationSeconds));
         _submissions = "";
         var clock = _clock;
@@ -168,7 +178,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
 
     void OnRoundResults(RoundResultsMessage results)
     {
-        Show(new ResultsViewModel(results, _client?.PlayerId, isLastRound: results.RoundNumber >= GameHost.TotalRounds));
+        Show(new ResultsViewModel(results, _client?.PlayerId, isLastRound: results.RoundNumber >= _totalRounds));
     }
 
     void OnMatchOver(MatchOverMessage over)
