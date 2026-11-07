@@ -29,6 +29,11 @@ public sealed class GameHost : IDisposable
     /// <summary>Extra time after the deadline for submissions still in flight.</summary>
     static readonly TimeSpan SubmitGrace = TimeSpan.FromSeconds(1);
     static readonly TimeSpan SilenceLimit = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// A send that can't finish in this long means that laptop stopped reading (frozen, asleep):
+    /// drop it rather than let it hold up the event loop and everyone else.
+    /// </summary>
+    static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(5);
 
     /// <summary>One connection. Info is null until the player is admitted to the lobby.</summary>
     sealed class Peer(Connection connection)
@@ -313,7 +318,16 @@ public sealed class GameHost : IDisposable
 
     static async Task SendLineAsync(Peer peer, string line)
     {
-        try { await peer.Connection.SendLineAsync(line); }
+        using var timeout = new CancellationTokenSource(SendTimeout);
+        try
+        {
+            await peer.Connection.SendLineAsync(line, timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            Debug.WriteLine($"[host] Send to {peer.Info?.Name ?? "a new connection"} timed out; dropping it");
+            peer.Connection.Dispose(); // its read loop ends and posts Disconnected
+        }
         catch { /* broken connection: its read loop will post Disconnected */ }
     }
 
