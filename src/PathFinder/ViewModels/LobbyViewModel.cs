@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PathFinder.Mapping;
 using PathFinder.Network;
 
 namespace PathFinder.ViewModels;
@@ -33,6 +34,20 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     public int MaxRounds => Protocol.MaxRounds;
     public int MinRoundSeconds => Protocol.MinRoundSeconds;
     public int MaxRoundSeconds => Protocol.MaxRoundSeconds;
+
+    /// <summary>Where the game's map is centered, typed as "latitude, longitude" (host only).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GameLocation), nameof(LocationError))]
+    private string _location = "";
+
+    /// <summary>The parsed <see cref="Location"/>, or null if it's empty or invalid.</summary>
+    public GeoPoint? GameLocation => GeoPoint.TryParse(Location, out var point) ? point : null;
+
+    /// <summary>Shown under the location box while the text can't be parsed.</summary>
+    public string? LocationError =>
+        string.IsNullOrWhiteSpace(Location) || GameLocation is not null
+            ? null
+            : "Use latitude, longitude in degrees, e.g. 42.7284, -73.6918";
     [ObservableProperty] private string? _status;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty]
@@ -132,6 +147,23 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         try { await _client.StartMatchAsync((int)(Rounds ?? Protocol.DefaultRounds), (int)(RoundSeconds ?? Protocol.DefaultRoundSeconds)); }
         catch (Exception ex) { Status = $"Couldn't start the match: {ex.Message}"; }
     }
+
+    /// <summary>
+    /// Opens the map so the host can pick the game's location: double-click a spot, then OK fills
+    /// in Location and returns here. Back returns without changing it. Centers on the typed
+    /// coordinates if they're valid, otherwise shows the whole world.
+    /// </summary>
+    [RelayCommand]
+    private void PickLocationOnMap() =>
+        showScreen(new MapViewModel(
+            back: () => showScreen(null),
+            start: GameLocation,
+            startZoom: 15,
+            confirm: point =>
+            {
+                Location = point.ToCoordinateString();
+                showScreen(null);
+            }));
 
     [RelayCommand]
     private void Leave()
