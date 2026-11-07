@@ -1,4 +1,6 @@
-﻿namespace PathFinder.ViewModels;
+﻿using System.Diagnostics;
+
+namespace PathFinder.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
