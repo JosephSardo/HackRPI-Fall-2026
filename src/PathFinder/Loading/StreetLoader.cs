@@ -179,7 +179,6 @@ public class StreetLoader : IDisposable
 
         return new CityMap("Placeholder");
 
-
         // Follows a street from an intersection to the next one. Null at a dead end, or where the
         // data runs out (a node without coordinates).
         (long End, double Length)? WalkToIntersection(long start, long first)
