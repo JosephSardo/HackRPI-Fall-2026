@@ -41,7 +41,6 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         try
         {
             _host = new GameHost();
-            _host.Start();
             await ConnectAsync("127.0.0.1", _host.Port, _host.HostKey);
             IsHost = true;
             var addresses = NetInfo.LanAddresses();
