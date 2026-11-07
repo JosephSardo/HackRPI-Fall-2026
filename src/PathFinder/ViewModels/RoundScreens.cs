@@ -145,8 +145,20 @@ public partial class SummaryViewModel(MatchOverMessage over, string? myId, Actio
         .Select(s => $"#{s.Rank}  {s.Name}{(s.PlayerId == myId ? " (you)" : "")}  {s.TotalScore:0.#} points")
         .ToList();
 
-    public string Winner { get; } = over.Standings.Count == 0 ? "Match over" :
-        over.Standings[0].PlayerId == myId ? "You win!" : $"{over.Standings[0].Name} wins!";
+    public string Winner { get; } = Headline(over.Standings, myId);
+
+    static string Headline(IReadOnlyList<PlayerTotal> standings, string? myId)
+    {
+        var winners = standings.Where(s => s.Rank == 1).ToList();
+        var iWon = winners.Any(w => w.PlayerId == myId);
+        return winners.Count switch
+        {
+            0 => "Match over",
+            1 => iWon ? "You win!" : $"{winners[0].Name} wins!",
+            _ when iWon => $"You tied for first with {string.Join(" and ", winners.Where(w => w.PlayerId != myId).Select(w => w.Name))}!",
+            _ => $"It's a tie: {string.Join(" and ", winners.Select(w => w.Name))}!",
+        };
+    }
 
     [RelayCommand]
     private void BackToLobby() => backToLobby();
