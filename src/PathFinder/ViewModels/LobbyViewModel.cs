@@ -52,6 +52,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NeedsMorePlayers))]
+    [NotifyPropertyChangedFor(nameof(ShowAddressesDirectly))]
     private bool _isHost;
 
     [ObservableProperty]
@@ -60,7 +61,12 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
 
     [ObservableProperty] private string? _hostAddresses;
     /// <summary>Short code for the host's address (e.g. "K3QZ-7TB"); null if it has no IPv4 address.</summary>
-    [ObservableProperty] private string? _gameCode;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAddressesDirectly))]
+    private string? _gameCode;
+
+    /// <summary>Host without an IPv4 game code: show the IPs plainly instead of in the "Other ways to join" expander.</summary>
+    public bool ShowAddressesDirectly => IsHost && GameCode is null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInMenu))]

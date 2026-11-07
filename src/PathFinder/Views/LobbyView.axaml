@@ -4,7 +4,14 @@
              xmlns:sys="using:System"
              x:Class="PathFinder.Views.LobbyView"
              x:DataType="vm:LobbyViewModel"
-             Background="LightBlue">
+             Background="#1d1945"
+             TextElement.Foreground="#d3eaff">
+
+    <UserControl.Styles>
+        <Style Selector="Button">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </UserControl.Styles>
 
     <!-- Placeholder layout: the UI owner can restyle this freely; bindings are the contract. -->
     <StackPanel Width="420" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -32,8 +39,20 @@
                 <TextBlock Text="Game code:" VerticalAlignment="Center"/>
                 <SelectableTextBlock Text="{Binding GameCode}" FontSize="28" FontWeight="Bold" FontFamily="Consolas, monospace"/>
                 <Button Content="Copy" Click="CopyGameCode_Click" VerticalAlignment="Center"/>
+                <!-- IP fallback as a small info bubble: hover for a tooltip, click for a copyable popup -->
+                <Button Content="&#x24D8;" FontSize="16" Padding="6,0" VerticalAlignment="Center"
+                        Background="Transparent" BorderThickness="0" Opacity="0.6"
+                        ToolTip.Tip="{Binding HostAddresses}" AutomationProperties.Name="Other ways to join">
+                    <Button.Flyout>
+                        <Flyout Placement="Bottom">
+                            <SelectableTextBlock Text="{Binding HostAddresses}" TextWrapping="Wrap" MaxWidth="320"/>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
             </StackPanel>
-            <SelectableTextBlock Text="{Binding HostAddresses}" IsVisible="{Binding IsHost}" TextWrapping="Wrap" Opacity="0.7"/>
+            <!-- No IPv4 game code: the IPs are the only way in, so show them plainly -->
+            <SelectableTextBlock Text="{Binding HostAddresses}" TextWrapping="Wrap" Opacity="0.7"
+                                 IsVisible="{Binding ShowAddressesDirectly}"/>
 
             <TextBlock Text="Players" FontWeight="SemiBold" Margin="0,8,0,0"/>
             <ItemsControl ItemsSource="{Binding Players}">

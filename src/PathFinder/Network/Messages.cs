@@ -6,7 +6,7 @@ namespace PathFinder.Network;
 public static class Protocol
 {
     /// <summary>Bump when messages change, so mismatched builds are turned away instead of misbehaving.</summary>
-    public const int Version = 4;
+    public const int Version = 5;
     public const int DefaultPort = 5050;
     public const int MinPlayers = 2;
     public const int MaxPlayers = 8;
@@ -36,6 +36,7 @@ public sealed record PlayerTotal(string PlayerId, string Name, double TotalScore
 [JsonDerivedType(typeof(StartMatchMessage), "StartMatch")]
 [JsonDerivedType(typeof(PingMessage), "Ping")]
 [JsonDerivedType(typeof(PongMessage), "Pong")]
+[JsonDerivedType(typeof(MatchStartMessage), "MatchStart")]
 [JsonDerivedType(typeof(RoundStartMessage), "RoundStart")]
 [JsonDerivedType(typeof(SubmitPathMessage), "SubmitPath")]
 [JsonDerivedType(typeof(PlayerSubmittedMessage), "PlayerSubmitted")]
@@ -57,6 +58,11 @@ public sealed record WelcomeMessage(string PlayerId) : NetMessage;
 public sealed record RejectedMessage(string Reason) : NetMessage;
 public sealed record LobbyUpdateMessage(List<PlayerInfo> Players) : NetMessage;
 public sealed record PongMessage(long Seq) : NetMessage;
+/// <summary>
+/// Sent once before round 1: the host's canonical map, so every player plays on identical IDs.
+/// Each round then only sends its start/end.
+/// </summary>
+public sealed record MatchStartMessage(MapData Map, int TotalRounds) : NetMessage;
 /// <summary>
 /// A round begins now. Clients count down DurationSeconds from when this arrives
 /// (laptop clocks don't agree, so no wall-clock times are sent).

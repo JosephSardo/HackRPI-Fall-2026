@@ -11,11 +11,11 @@ public class Street
 
     public double Distance { get; set; }
 
-    public string ImagePath { get; set; }
+    public string? ImagePath { get; set; }
 
     public Street(int id, double d, Intersection s, Intersection e)
     {
-        if(d < 0 || d == double.NaN || d == double.PositiveInfinity || d == double.NegativeInfinity)
+        if(d < 0 || !double.IsFinite(d))
         {
             throw new ArgumentException("Street distance cannot be negative, NaN, or infinity");
         }

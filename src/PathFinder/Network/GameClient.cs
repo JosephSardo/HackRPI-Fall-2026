@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using PathFinder.Models;
 
 namespace PathFinder.Network;
 
@@ -28,12 +29,20 @@ public sealed class GameClient : IDisposable
     public string? PlayerId { get; private set; }
     public IReadOnlyList<PlayerInfo> Players { get; private set; } = [];
 
+    /// <summary>
+    /// This player's copy of the host's map for the current match (from MatchStart). Read-only as far as
+    /// the game is concerned: it's for drawing and building routes; the host scores on its own copy.
+    /// </summary>
+    public CityMap? Map { get; private set; }
+
     /// <summary>Round currently being played or showing results; 0 before the first round.</summary>
     public int CurrentRound { get; private set; }
     /// <summary>Whether this player already submitted for <see cref="CurrentRound"/> (one submission per round).</summary>
     public bool HasSubmitted { get; private set; }
 
     public event Action<IReadOnlyList<PlayerInfo>>? PlayersChanged;
+    /// <summary>A match is starting; <see cref="Map"/> is set. RoundStarted for round 1 follows.</summary>
+    public event Action<MatchStartMessage>? MatchStarted;
     public event Action<RoundStartMessage>? RoundStarted;
     /// <summary>Someone (possibly you) submitted. No path is included.</summary>
     public event Action<PlayerSubmittedMessage>? PlayerSubmitted;
@@ -154,6 +163,21 @@ public sealed class GameClient : IDisposable
                     case LobbyUpdateMessage update:
                         Players = update.Players;
                         Raise(() => PlayersChanged?.Invoke(update.Players));
+                        break;
+                    case MatchStartMessage matchStart:
+                        CityMap map;
+                        try { map = MapDataConverter.ToCityMap(matchStart.Map); }
+                        catch (InvalidDataException)
+                        {
+                            reason = "The host sent a broken map.";
+                            Close(reason);
+                            return;
+                        }
+                        Raise(() =>
+                        {
+                            Map = map;
+                            MatchStarted?.Invoke(matchStart);
+                        });
                         break;
                     case RoundStartMessage start:
                         Raise(() =>

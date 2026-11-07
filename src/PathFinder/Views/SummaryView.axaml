@@ -4,7 +4,15 @@
              xmlns:sys="using:System"
              x:Class="PathFinder.Views.SummaryView"
              x:DataType="vm:SummaryViewModel"
-             Background="LightBlue">
+             Background="#1d1945"
+             TextElement.Foreground="#d3eaff">
+
+    <UserControl.Styles>
+        <Style Selector="Button">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </UserControl.Styles>
+    
     <!-- Placeholder layout: restyle freely; bindings are the contract. -->
     <StackPanel Width="460" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
         <TextBlock Text="{Binding Winner}" FontSize="28" FontWeight="Bold"/>
