@@ -8,8 +8,14 @@
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
         Title="PathFinder" Width="900" Height="600"
-        Background="LightBlue"
-        TextElement.Foreground="Black">
+        Background="#1d1945"
+        TextElement.Foreground="#d3eaff">
+
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </Window.Styles>
 
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,

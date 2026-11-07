@@ -4,8 +4,14 @@
              xmlns:sys="using:System"
              x:Class="PathFinder.Views.LobbyView"
              x:DataType="vm:LobbyViewModel"
-             Background="LightBlue"
-             TextElement.Foreground="Black">
+             Background="#1d1945"
+             TextElement.Foreground="#d3eaff">
+
+    <UserControl.Styles>
+        <Style Selector="Button">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </UserControl.Styles>
 
     <!-- Placeholder layout: the UI owner can restyle this freely; bindings are the contract. -->
     <StackPanel Width="420" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
