@@ -22,5 +22,6 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.1" />
+    <PackageReference Include="QuikGraph" Version="2.5.0" />
   </ItemGroup>
 </Project>
