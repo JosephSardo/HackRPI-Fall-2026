@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using PathFinder.Models;
 
 namespace PathFinder.Network;
 
@@ -50,7 +51,9 @@ public sealed class GameHost : IDisposable
     sealed record ResultsTimeUp(Match Match, int Round) : HostEvent;
     sealed record Tick : HostEvent;
 
-    readonly IRoundRules _rules;
+    readonly CityMap _map;               // the canonical map: only the host changes it
+    readonly MapData _mapSnapshot;       // what gets sent to players
+    IRoundRules _rules;                  // fresh per match, so start/end pairs don't repeat within a match
     readonly Channel<HostEvent> _events = Channel.CreateUnbounded<HostEvent>(new() { SingleReader = true });
     readonly CancellationTokenSource _cts = new();
     readonly TcpListener _listener;
@@ -66,9 +69,11 @@ public sealed class GameHost : IDisposable
     /// Starts hosting right away: listens on all interfaces (IPv4 and IPv6) and starts the loops.
     /// Throws SocketException (AddressAlreadyInUse) if the port is taken.
     /// </summary>
-    public GameHost(int port = Protocol.DefaultPort, IRoundRules? rules = null, TimeSpan? resultsDuration = null)
+    public GameHost(int port = Protocol.DefaultPort, CityMap? map = null, TimeSpan? resultsDuration = null)
     {
-        _rules = rules ?? new StubRoundRules();
+        _map = map ?? TestMaps.Grid();
+        _mapSnapshot = MapDataConverter.ToData(_map);
+        _rules = new CityMapRoundRules(_map);
         ResultsDuration = resultsDuration ?? DefaultResultsDuration;
         _listener = Listen(port);
         Port = port;
@@ -253,8 +258,9 @@ public sealed class GameHost : IDisposable
                 var rounds = Math.Clamp(start.Rounds, Protocol.MinRounds, Protocol.MaxRounds);
                 var roundSeconds = Math.Clamp(start.RoundSeconds, Protocol.MinRoundSeconds, Protocol.MaxRoundSeconds);
                 _roundDuration = TimeSpan.FromSeconds(roundSeconds);
+                _rules = new CityMapRoundRules(_map);
                 _match = new Match(_rules, _players.Select(p => p.Info!), rounds, roundSeconds, (int)ResultsDuration.TotalSeconds);
-                return ApplyAsync(_match.Start());
+                return ApplyAsync([new MatchStartMessage(_mapSnapshot, rounds), .. _match.Start()]);
             case SubmitPathMessage submit when _match is not null:
                 return ApplyAsync(_match.Submit(player.Id, submit.RoundNumber, submit.NodeIds ?? []));
             default:

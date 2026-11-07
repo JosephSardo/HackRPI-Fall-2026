@@ -39,7 +39,7 @@ public sealed class CityMapRoundRules(CityMap map, int minRouteStreets = 4, int?
             var end = ids[_random.Next(ids.Count)];
             if (start == end || _usedPairs.Contains((start, end)) || _usedPairs.Contains((end, start))) continue;
 
-            var streets = ShortestRoute(start, end)?.Count ?? 0; // 0 = unreachable
+            var streets = ShortestRoute(Map, start, end)?.Count ?? 0; // 0 = unreachable
             if (streets > bestStreets) (best, bestStreets) = ((start, end), streets);
             if (streets >= minRouteStreets) break;
         }
@@ -72,13 +72,20 @@ public sealed class CityMapRoundRules(CityMap map, int minRouteStreets = 4, int?
     }
 
     /// <summary>The best route as node IDs from start to end, and its length.</summary>
-    public (IReadOnlyList<int> NodeIds, double Length) OptimalRoute(int startId, int endId)
+    public (IReadOnlyList<int> NodeIds, double Length) OptimalRoute(int startId, int endId) =>
+        BestRoute(Map, startId, endId);
+
+    /// <summary>
+    /// Shortest route on any map (also usable on a client's copy, e.g. for the placeholder submit buttons).
+    /// Empty if end can't be reached.
+    /// </summary>
+    public static (IReadOnlyList<int> NodeIds, double Length) BestRoute(CityMap map, int startId, int endId)
     {
-        var route = ShortestRoute(startId, endId);
+        var route = ShortestRoute(map, startId, endId);
         if (route is null) return ([], 0);
 
         var nodes = new List<int> { startId };
-        var current = Map.GetIntersection(startId);
+        var current = map.GetIntersection(startId);
         foreach (var edge in route)
         {
             current = edge.Source.Id == current.Id ? edge.Target : edge.Source; // undirected: walk to the other end
@@ -97,10 +104,10 @@ public sealed class CityMapRoundRules(CityMap map, int minRouteStreets = 4, int?
     }
 
     /// <summary>Dijkstra over street lengths; null if end can't be reached from start.</summary>
-    List<QuikGraph.TaggedUndirectedEdge<Intersection, Street>>? ShortestRoute(int startId, int endId)
+    static List<QuikGraph.TaggedUndirectedEdge<Intersection, Street>>? ShortestRoute(CityMap map, int startId, int endId)
     {
-        var tryGetPath = Map.Graph.ShortestPathsDijkstra(e => e.Tag.Distance, Map.GetIntersection(startId));
-        return tryGetPath(Map.GetIntersection(endId), out var path) ? path.ToList() : null;
+        var tryGetPath = map.Graph.ShortestPathsDijkstra(e => e.Tag.Distance, map.GetIntersection(startId));
+        return tryGetPath(map.GetIntersection(endId), out var path) ? path.ToList() : null;
     }
 
     Street? StreetBetween(int a, int b)
