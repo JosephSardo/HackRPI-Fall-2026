@@ -50,9 +50,10 @@ public sealed class GameHost : IDisposable
     sealed record RoundTimeUp(Match Match, int Round) : HostEvent;
     sealed record ResultsTimeUp(Match Match, int Round) : HostEvent;
     sealed record Tick : HostEvent;
+    sealed record MapChanged(CityMap Map) : HostEvent;
 
-    readonly CityMap _map;               // the canonical map: only the host changes it
-    readonly MapData _mapSnapshot;       // what gets sent to players
+    CityMap _map;                        // the canonical map for the next match: only the host changes it
+    MapData _mapSnapshot;                // what gets sent to players
     IRoundRules _rules;                  // fresh per match, so start/end pairs don't repeat within a match
     readonly Channel<HostEvent> _events = Channel.CreateUnbounded<HostEvent>(new() { SingleReader = true });
     readonly CancellationTokenSource _cts = new();
@@ -126,6 +127,12 @@ public sealed class GameHost : IDisposable
     }
 
     void Post(HostEvent e) => _events.Writer.TryWrite(e);
+
+    /// <summary>
+    /// Use this map from the next match on (a match already running keeps its map). Safe to call from
+    /// the UI: it's queued like every other event, so a StartMatch sent after this call always sees it.
+    /// </summary>
+    public void UseMap(CityMap map) => Post(new MapChanged(map));
 
     // ------------------------------------------------------------ background producers (post events only)
 
@@ -213,6 +220,10 @@ public sealed class GameHost : IDisposable
                 return ApplyAsync(_match.TimeUp(t.Round));
             case ResultsTimeUp t when t.Match == _match:
                 return ApplyAsync(_match.ResultsTimeUp(t.Round));
+            case MapChanged changed:
+                _map = changed.Map;
+                _mapSnapshot = MapDataConverter.ToData(changed.Map);
+                return Task.CompletedTask;
             case Tick:
                 DropSilentPeers();
                 return Task.CompletedTask;
