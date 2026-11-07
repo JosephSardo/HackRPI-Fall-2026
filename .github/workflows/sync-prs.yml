@@ -6,9 +6,18 @@ name: Keep PRs in sync with main
 #   - conflicts  -> label the PR `merge-conflict` and comment once with the
 #                   conflicting files; the PR is NOT merged
 #   - resolved   -> remove the `merge-conflict` label once it's clean again
-#   - auto-merge -> if the PR is clean, not a draft and has no `do-not-merge`
-#                   label, squash-merge it into main (same run, right after
-#                   the sync)
+#   - build      -> build the synced branch (the PR with main merged in, i.e.
+#                   exactly what would land) in Release: the app project plus
+#                   tools/NetCheck.cs. If that fails, label the PR
+#                   `build-failed`, comment once with the end of the build
+#                   output, and do NOT merge it. The label is removed once it
+#                   builds again. Each commit is built at most once per run.
+#   - auto-merge -> if the PR is clean, builds, is not a draft and has no
+#                   `do-not-merge` label, squash-merge it into main (same run,
+#                   right after the sync and build)
+#
+# Drafts and `do-not-merge` PRs are still synced and built (so the label tells
+# you early), they just aren't merged.
 #
 # Escape hatches: mark the PR as a draft, or add the `do-not-merge` label.
 # Removing the label / marking it ready for review re-triggers this workflow.
@@ -49,11 +58,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Sync and auto-merge open PRs
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Sync, build and auto-merge open PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LABEL: merge-conflict
           HOLD_LABEL: do-not-merge
+          BUILD_LABEL: build-failed
+          BUILD_LOG_LINES: 30   # lines of build output quoted in the PR comment
+          DOTNET_NOLOGO: "true"
+          DOTNET_CLI_TELEMETRY_OPTOUT: "true"
           MAX_PASSES: 10        # upper bound on "re-sync after a merge" passes
           MERGEABLE_TIMEOUT: 90 # seconds to wait for GitHub to compute mergeability
         run: |
@@ -66,6 +83,8 @@ jobs:
             --description "This PR has merge conflicts with main" --force >/dev/null
           gh label create "$HOLD_LABEL" --color FBCA04 \
             --description "Don't auto-merge this PR" --force >/dev/null
+          gh label create "$BUILD_LABEL" --color D93F0B \
+            --description "This PR doesn't build once merged with main" --force >/dev/null
 
           # Pick an allowed merge method, preferring squash.
           method=$(gh api "repos/$GITHUB_REPOSITORY" --jq '
@@ -90,16 +109,32 @@ jobs:
             done
           }
 
+          # Build the checked-out commit $1 in Release. The full output goes to
+          # the job log and to build-<sha>.log; results are cached per commit,
+          # so later passes don't rebuild a commit that hasn't changed.
+          # Returns 0 if it builds.
+          build_commit() {
+            local sha=$1 log="$RUNNER_TEMP/build-$1.log" rc=0
+            if [ -f "$log.ok" ]; then echo "Commit $sha already built OK in this run."; return 0; fi
+            if [ -f "$log" ];    then echo "Commit $sha already failed to build in this run."; return 1; fi
+            { dotnet build src/PathFinder/PathFinder.csproj -c Release &&
+              dotnet build tools/NetCheck.cs -c Release; } 2>&1 | tee "$log" || rc=1
+            git clean -ffdxq   # drop bin/ and obj/ before the next PR's checkout
+            [ "$rc" -eq 0 ] && touch "$log.ok"
+            return "$rc"
+          }
+
           # Sync one PR with main and merge it if allowed.
           # Returns 0 only if the PR was merged into main.
           process_pr() {
-            local pr=$1 num branch fork labeled held draft info sha
+            local pr=$1 num branch fork labeled held draft broken info sha
             num=$(jq -r .number <<<"$pr")
             branch=$(jq -r .headRefName <<<"$pr")
             fork=$(jq -r .isCrossRepository <<<"$pr")
             draft=$(jq -r .isDraft <<<"$pr")
             labeled=$(jq -r --arg l "$LABEL" '[.labels[].name] | index($l) != null' <<<"$pr")
             held=$(jq -r --arg l "$HOLD_LABEL" '[.labels[].name] | index($l) != null' <<<"$pr")
+            broken=$(jq -r --arg l "$BUILD_LABEL" '[.labels[].name] | index($l) != null' <<<"$pr")
 
             if [ "$fork" = "true" ]; then
               echo "Skipping: PR comes from a fork, can't push to it."; return 1
@@ -145,13 +180,33 @@ jobs:
             fi
             [ "$labeled" = "true" ] && gh pr edit "$num" --remove-label "$LABEL"
 
-            # --- 2. Auto-merge into main ---------------------------------------
+            # --- 2. Build exactly what would land ------------------------------
+            sha=$(git rev-parse HEAD)
+            if ! build_commit "$sha"; then
+              echo "Build failed."
+              if [ "$broken" != "true" ]; then
+                gh pr edit "$num" --add-label "$BUILD_LABEL"
+                gh pr comment "$num" --body "$(cat <<MSG
+          :x: **This PR doesn't build once merged with \`main\`**, so it won't be auto-merged.
+
+          \`dotnet build -c Release\` failed on $sha. End of the output:
+          \`\`\`text
+          $(tail -n "$BUILD_LOG_LINES" "$RUNNER_TEMP/build-$sha.log")
+          \`\`\`
+          The \`$BUILD_LABEL\` label will be removed automatically once it builds again.
+          MSG
+                )"
+              fi
+              return 1
+            fi
+            [ "$broken" = "true" ] && gh pr edit "$num" --remove-label "$BUILD_LABEL"
+
+            # --- 3. Auto-merge into main ---------------------------------------
             [ -z "$method" ] && return 1
             if [ "$draft" = "true" ] || [ "$held" = "true" ]; then
               echo "Not merging: draft or '$HOLD_LABEL' label."; return 1
             fi
 
-            sha=$(git rev-parse HEAD)
             if ! info=$(wait_for_mergeable "$num" "$sha"); then
               echo "::warning::GitHub didn't report mergeability for #$num in time; will retry next run."
               return 1

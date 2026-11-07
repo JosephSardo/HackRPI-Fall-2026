@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PathFinder.Mapping;
 using PathFinder.Network;
 
 namespace PathFinder.ViewModels;
@@ -33,6 +34,20 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     public int MaxRounds => Protocol.MaxRounds;
     public int MinRoundSeconds => Protocol.MinRoundSeconds;
     public int MaxRoundSeconds => Protocol.MaxRoundSeconds;
+
+    /// <summary>Where the game's map is centered, typed as "latitude, longitude" (host only).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GameLocation), nameof(LocationError))]
+    private string _location = "";
+
+    /// <summary>The parsed <see cref="Location"/>, or null if it's empty or invalid.</summary>
+    public GeoPoint? GameLocation => GeoPoint.TryParse(Location, out var point) ? point : null;
+
+    /// <summary>Shown under the location box while the text can't be parsed.</summary>
+    public string? LocationError =>
+        string.IsNullOrWhiteSpace(Location) || GameLocation is not null
+            ? null
+            : "Use latitude, longitude in degrees, e.g. 42.7284, -73.6918";
     [ObservableProperty] private string? _status;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty]
@@ -45,6 +60,9 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     private bool _matchStarted;
 
     [ObservableProperty] private string? _hostAddresses;
+    /// <summary>Host only: which map this game is on, and a warning if it fell back to the test map.</summary>
+    [ObservableProperty] private string? _mapInfo;
+    [ObservableProperty] private string? _mapWarning;
     /// <summary>Short code for the host's address (e.g. "K3QZ-7TB"); null if it has no IPv4 address.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowAddressesDirectly))]
@@ -70,12 +88,16 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     {
         if (!ValidateName()) return;
         IsBusy = true;
-        Status = "Starting game...";
+        Status = "Loading map...";
         try
         {
-            _host = new GameHost();
+            var (map, mapWarning) = await HostMapLoader.LoadAsync();
+            Status = "Starting game...";
+            _host = new GameHost(map: map);
             await ConnectAsync("127.0.0.1", _host.Port, _host.HostKey);
             IsHost = true;
+            MapInfo = $"Map: {map.Name} ({map.Graph.VertexCount} intersections, {map.Graph.EdgeCount} streets)";
+            MapWarning = mapWarning;
             var addresses = NetInfo.LanAddresses();
             GameCode = addresses.Select(Network.GameCode.FromAddress).FirstOrDefault(code => code is not null);
             HostAddresses = addresses.Count == 0
@@ -138,6 +160,23 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         try { await _client.StartMatchAsync((int)(Rounds ?? Protocol.DefaultRounds), (int)(RoundSeconds ?? Protocol.DefaultRoundSeconds)); }
         catch (Exception ex) { Status = $"Couldn't start the match: {ex.Message}"; }
     }
+
+    /// <summary>
+    /// Opens the map so the host can pick the game's location: double-click a spot, then OK fills
+    /// in Location and returns here. Back returns without changing it. Centers on the typed
+    /// coordinates if they're valid, otherwise shows the whole world.
+    /// </summary>
+    [RelayCommand]
+    private void PickLocationOnMap() =>
+        showScreen(new MapViewModel(
+            back: () => showScreen(null),
+            start: GameLocation,
+            startZoom: 15,
+            confirm: point =>
+            {
+                Location = point.ToCoordinateString();
+                showScreen(null);
+            }));
 
     [RelayCommand]
     private void Leave()
@@ -248,6 +287,8 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         MatchStarted = false;
         HostAddresses = null;
         GameCode = null;
+        MapInfo = null;
+        MapWarning = null;
         if (_screen is not null) Show(null); // back to the lobby screen
     }
 

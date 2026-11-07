@@ -2,8 +2,6 @@ namespace PathFinder.Services;
 
 using System;
 using System.Collections.Generic;
-using Avalonia.Data;
-using Avalonia.Input.TextInput;
 using PathFinder.Models;
 
 public class GameService
