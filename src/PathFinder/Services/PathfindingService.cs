@@ -6,9 +6,9 @@ using QuikGraph;
 using QuikGraph.Algorithms;
 using PathFinder.Models;
 
-public class PathfindingService
+public static class PathfindingService
 {
-    public double? FindOptimalDistance(CityMap map)
+    public static double? FindOptimalDistance(CityMap map)
     {
         Intersection start = map.GetIntersection(map.StartId);
         Intersection end = map.GetIntersection(map.EndId);

@@ -18,8 +18,8 @@ public class CityMap
     public CityMap(string name)
     {
         Name = name;
-        StartId = 0;
-        EndId = 0;
+        StartId = 1;
+        EndId = 1;
         Graph = new UndirectedGraph<Intersection, TaggedUndirectedEdge<Intersection, Street>>();
         Intersections = new Dictionary<int, Intersection>();
     }
