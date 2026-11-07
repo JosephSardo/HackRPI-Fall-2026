@@ -15,10 +15,11 @@ public class CityMap
     public UndirectedGraph<Intersection, TaggedUndirectedEdge<Intersection, Street>> Graph { get; set; }
     private Dictionary<int, Intersection> Intersections;
 
-    public CityMap(int start, int end)
+    public CityMap(string name)
     {
-        StartId = start;
-        EndId = end;
+        Name = name;
+        StartId = 0;
+        EndId = 0;
         Graph = new UndirectedGraph<Intersection, TaggedUndirectedEdge<Intersection, Street>>();
         Intersections = new Dictionary<int, Intersection>();
     }

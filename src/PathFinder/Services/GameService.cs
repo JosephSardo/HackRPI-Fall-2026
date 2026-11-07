@@ -8,6 +8,18 @@ public class GameService
 {
     private CityMap _cityMap;
 
+    public GameService(
+        List<(double X, double Y)> intersections,
+        List<(
+            double Distance,
+            (double X, double Y) Start,
+            (double X, double Y) End
+        )> streets
+    )
+    {
+        _cityMap = MapService.CreateMap(intersections, streets);
+    }
+
     //returns the player's selected path
     public List<int> GetPlayerPath()
     {
