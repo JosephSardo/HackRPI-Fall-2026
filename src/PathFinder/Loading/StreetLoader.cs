@@ -70,9 +70,16 @@ public class StreetLoader : IDisposable
     }
 
     /// <summary>
-    /// Returns the street network within <see cref="RadiusMeters"/> of the center as a graph:
-    /// intersections, and the streets between them with their real (curve-following) lengths.
-    /// See <see cref="StreetGraph"/> for what's guaranteed.
+    /// Returns the street network within <see cref="RadiusMeters"/> of the center as a
+    /// <see cref="CityMap"/>: an <see cref="Intersection"/> for each junction and a
+    /// <see cref="Street"/> for each road between two junctions, with its real (curve-following) length.
+    /// <list type="bullet">
+    /// <item>Intersection IDs run 1..N; the same area always gets the same IDs.</item>
+    /// <item>Intersection X/Y are metres from the center: X is east, Y is north.</item>
+    /// <item>At most one street joins any two intersections, and every intersection can reach every other one.</item>
+    /// <item>Dead-end streets are left out: no shortest route between two intersections uses one.</item>
+    /// </list>
+    /// The map is empty if there are no streets in the area.
     /// </summary>
     public async Task<CityMap> LoadMap(CancellationToken cancellationToken = default)
     {
@@ -169,15 +176,27 @@ public class StreetLoader : IDisposable
         // connected piece so every start/end pair has a route.
         var keep = LargestConnectedPiece(streets.Keys);
 
-        /*
-        return new StreetGraph(
-            keep.Select(ToMetres).ToList(),
-            streets.Where(s => keep.Contains(s.Key.A))
-                   .Select(s => (s.Value, ToMetres(s.Key.A), ToMetres(s.Key.B)))
-                   .ToList());
-        */
+        var map = new CityMap(string.Create(CultureInfo.InvariantCulture,
+            $"{Latitude:0.0000}, {Longitude:0.0000} ({RadiusMeters:0} m)"));
 
-        return new CityMap("Placeholder");
+        // OSM node IDs are huge and sparse; the game uses small sequential IDs. Numbering in OSM-ID
+        // order makes the same area always produce the same IDs.
+        var intersections = new Dictionary<long, Intersection>();
+        var nextIntersectionId = 1;
+        foreach (var osmId in keep.Order())
+        {
+            var (x, y) = ToMetres(osmId);
+            var intersection = new Intersection(nextIntersectionId++, x, y);
+            intersections.Add(osmId, intersection);
+            map.AddIntersection(intersection);
+        }
+
+        // Streets in a stable order too, so street IDs are repeatable.
+        var nextStreetId = 1;
+        foreach (var ((a, b), length) in streets.Where(s => keep.Contains(s.Key.A)).OrderBy(s => s.Key))
+            map.AddStreet(new Street(nextStreetId++, length, intersections[a], intersections[b]));
+
+        return map;
 
         // Follows a street from an intersection to the next one. Null at a dead end, or where the
         // data runs out (a node without coordinates).
