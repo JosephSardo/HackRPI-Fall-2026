@@ -106,7 +106,7 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
     {
         var client = new GameClient();
         client.PlayersChanged += OnPlayersChanged;
-        client.MatchStarting += OnMatchStarting;
+        client.RoundStarted += OnRoundStarted;
         client.Disconnected += OnDisconnected;
         _client = client;
         await client.ConnectAsync(address, port, PlayerName.Trim(), hostKey);
@@ -126,10 +126,10 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         }
     }
 
-    void OnMatchStarting()
+    void OnRoundStarted(RoundStartMessage start) // placeholder until the round screens exist
     {
         MatchStarted = true;
-        Status = "Match starting! (Rounds aren't implemented yet.)";
+        Status = $"Round {start.RoundNumber} of {start.TotalRounds} started! (Round screens come next.)";
     }
 
     void OnDisconnected(string reason) => Fail(reason);
@@ -152,7 +152,7 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         if (_client is not null)
         {
             _client.PlayersChanged -= OnPlayersChanged;
-            _client.MatchStarting -= OnMatchStarting;
+            _client.RoundStarted -= OnRoundStarted;
             _client.Disconnected -= OnDisconnected;
             _client.Dispose();
             _client = null;

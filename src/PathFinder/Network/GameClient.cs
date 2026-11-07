@@ -28,8 +28,18 @@ public sealed class GameClient : IDisposable
     public string? PlayerId { get; private set; }
     public IReadOnlyList<PlayerInfo> Players { get; private set; } = [];
 
+    /// <summary>Round currently being played or showing results; 0 before the first round.</summary>
+    public int CurrentRound { get; private set; }
+    /// <summary>Whether this player already submitted for <see cref="CurrentRound"/> (one submission per round).</summary>
+    public bool HasSubmitted { get; private set; }
+
     public event Action<IReadOnlyList<PlayerInfo>>? PlayersChanged;
-    public event Action? MatchStarting;
+    public event Action<RoundStartMessage>? RoundStarted;
+    /// <summary>Someone (possibly you) submitted. No path is included.</summary>
+    public event Action<PlayerSubmittedMessage>? PlayerSubmitted;
+    public event Action<RoundResultsMessage>? RoundResultsReady;
+    /// <summary>Match finished; the host's lobby is open again.</summary>
+    public event Action<MatchOverMessage>? MatchOver;
     /// <summary>Connection ended unexpectedly. The argument is a reason that can be shown to the player.</summary>
     public event Action<string>? Disconnected;
 
@@ -79,7 +89,24 @@ public sealed class GameClient : IDisposable
         _ = PingLoopAsync(_cts.Token);
     }
 
-    public Task StartMatchAsync() => _connection?.SendAsync(new StartMatchMessage()) ?? Task.CompletedTask;
+    public Task StartMatchAsync() => SendAsync(new StartMatchMessage());
+
+    /// <summary>
+    /// Sends this round's path (node IDs, start to end). Only the first call per round is sent;
+    /// later calls return false. Call from the UI thread.
+    /// </summary>
+    public async Task<bool> SubmitPathAsync(IReadOnlyList<int> nodeIds)
+    {
+        if (CurrentRound == 0 || HasSubmitted) return false;
+        HasSubmitted = true;
+        await SendAsync(new SubmitPathMessage(CurrentRound, [.. nodeIds]));
+        return true;
+    }
+
+    /// <summary>Tells the host this player is done with the results screen.</summary>
+    public Task ReadyForNextAsync() => SendAsync(new ReadyForNextMessage(CurrentRound));
+
+    Task SendAsync(NetMessage message) => _connection?.SendAsync(message) ?? Task.CompletedTask;
 
     static async Task<IPAddress> ResolveAsync(string address)
     {
@@ -130,8 +157,26 @@ public sealed class GameClient : IDisposable
                         Players = update.Players;
                         Raise(() => PlayersChanged?.Invoke(update.Players));
                         break;
-                    case RoundStartMessage: // temporary: lobby just shows "match starting" until rounds reach the client
-                        Raise(() => MatchStarting?.Invoke());
+                    case RoundStartMessage start:
+                        Raise(() =>
+                        {
+                            CurrentRound = start.RoundNumber;
+                            HasSubmitted = false;
+                            RoundStarted?.Invoke(start);
+                        });
+                        break;
+                    case PlayerSubmittedMessage submitted:
+                        Raise(() => PlayerSubmitted?.Invoke(submitted));
+                        break;
+                    case RoundResultsMessage results:
+                        Raise(() => RoundResultsReady?.Invoke(results));
+                        break;
+                    case MatchOverMessage over:
+                        Raise(() =>
+                        {
+                            CurrentRound = 0;
+                            MatchOver?.Invoke(over);
+                        });
                         break;
                 }
             }
