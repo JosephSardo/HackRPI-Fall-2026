@@ -10,11 +10,17 @@ using PathFinder.Network;
 
 namespace PathFinder.ViewModels;
 
-/// <summary>Host or join a game, then wait in the lobby until the host starts the match.</summary>
-public partial class LobbyViewModel : ViewModelBase, IDisposable
+/// <summary>
+/// Host or join a game and wait in the lobby. Owns the connection for the whole session and
+/// switches to the round screens as the match progresses (via <c>showScreen</c>; null = this lobby).
+/// </summary>
+public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewModelBase, IDisposable
 {
     GameHost? _host;
     GameClient? _client;
+    ViewModelBase? _screen;      // the round screen showing, if any
+    RoundClock? _clock;
+    string _submissions = "";
 
     [ObservableProperty] private string _playerName = Environment.UserName;
     [ObservableProperty] private string _joinAddress = "";
@@ -107,6 +113,9 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         var client = new GameClient();
         client.PlayersChanged += OnPlayersChanged;
         client.RoundStarted += OnRoundStarted;
+        client.PlayerSubmitted += OnPlayerSubmitted;
+        client.RoundResultsReady += OnRoundResults;
+        client.MatchOver += OnMatchOver;
         client.Disconnected += OnDisconnected;
         _client = client;
         await client.ConnectAsync(address, port, PlayerName.Trim(), hostKey);
@@ -126,10 +135,41 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         }
     }
 
-    void OnRoundStarted(RoundStartMessage start) // placeholder until the round screens exist
+    // ---- match flow: Playing -> Waiting -> Results -> (next round | Summary) -> lobby
+
+    void OnRoundStarted(RoundStartMessage start)
     {
+        if (_client is null) return;
         MatchStarted = true;
-        Status = $"Round {start.RoundNumber} of {start.TotalRounds} started! (Round screens come next.)";
+        _clock = new RoundClock(TimeSpan.FromSeconds(start.DurationSeconds));
+        _submissions = "";
+        var clock = _clock;
+        Show(new PlayingViewModel(_client, start, clock, _submissions,
+            done: timedOut => Show(new WaitingViewModel(clock, _submissions, timedOut))));
+    }
+
+    void OnPlayerSubmitted(PlayerSubmittedMessage submitted)
+    {
+        _submissions = $"{submitted.SubmittedCount} of {submitted.PlayerCount} players submitted";
+        if (_screen is IShowsSubmissions screen) screen.Submissions = _submissions;
+    }
+
+    void OnRoundResults(RoundResultsMessage results)
+    {
+        if (_client is null) return;
+        Show(new ResultsViewModel(_client, results, isLastRound: results.RoundNumber >= GameHost.TotalRounds));
+    }
+
+    void OnMatchOver(MatchOverMessage over)
+    {
+        MatchStarted = false; // host can start another match from the lobby
+        Show(new SummaryViewModel(over, _client?.PlayerId, backToLobby: () => Show(null)));
+    }
+
+    void Show(ViewModelBase? screen)
+    {
+        _screen = screen;
+        showScreen(screen);
     }
 
     void OnDisconnected(string reason) => Fail(reason);
@@ -153,6 +193,9 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         {
             _client.PlayersChanged -= OnPlayersChanged;
             _client.RoundStarted -= OnRoundStarted;
+            _client.PlayerSubmitted -= OnPlayerSubmitted;
+            _client.RoundResultsReady -= OnRoundResults;
+            _client.MatchOver -= OnMatchOver;
             _client.Disconnected -= OnDisconnected;
             _client.Dispose();
             _client = null;
@@ -164,6 +207,7 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         IsInLobby = false;
         MatchStarted = false;
         HostAddresses = null;
+        if (_screen is not null) Show(null); // back to the lobby screen
     }
 
     public void Dispose() => Cleanup();

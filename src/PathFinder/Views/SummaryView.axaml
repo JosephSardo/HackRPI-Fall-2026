@@ -1,0 +1,20 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PathFinder.ViewModels"
+             xmlns:sys="using:System"
+             x:Class="PathFinder.Views.SummaryView"
+             x:DataType="vm:SummaryViewModel">
+    <!-- Placeholder layout: restyle freely; bindings are the contract. -->
+    <StackPanel Width="460" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Winner}" FontSize="28" FontWeight="Bold"/>
+        <TextBlock Text="Final standings" FontWeight="SemiBold"/>
+        <ItemsControl ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="sys:String">
+                    <TextBlock Text="{Binding}" Margin="8,2"/>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Content="Back to lobby" Command="{Binding BackToLobbyCommand}"/>
+    </StackPanel>
+</UserControl>
