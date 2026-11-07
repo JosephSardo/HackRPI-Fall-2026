@@ -22,6 +22,7 @@ namespace PathFinder.Network;
 public sealed class GameHost : IDisposable
 {
     public static readonly TimeSpan DefaultRoundDuration = TimeSpan.FromSeconds(90);
+    public static readonly TimeSpan DefaultResultsDuration = TimeSpan.FromSeconds(10);
     public const int TotalRounds = 3;
 
     static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(10);
@@ -43,6 +44,7 @@ public sealed class GameHost : IDisposable
     sealed record Received(Peer Peer, NetMessage Message) : HostEvent;
     sealed record Disconnected(Peer Peer) : HostEvent;
     sealed record RoundTimeUp(Match Match, int Round) : HostEvent;
+    sealed record ResultsTimeUp(Match Match, int Round) : HostEvent;
     sealed record Tick : HostEvent;
 
     readonly IRoundRules _rules;
@@ -60,10 +62,12 @@ public sealed class GameHost : IDisposable
     /// Starts hosting right away: listens on all interfaces (IPv4 and IPv6) and starts the loops.
     /// Throws SocketException (AddressAlreadyInUse) if the port is taken.
     /// </summary>
-    public GameHost(int port = Protocol.DefaultPort, IRoundRules? rules = null, TimeSpan? roundDuration = null)
+    public GameHost(int port = Protocol.DefaultPort, IRoundRules? rules = null,
+                    TimeSpan? roundDuration = null, TimeSpan? resultsDuration = null)
     {
         _rules = rules ?? new StubRoundRules();
         RoundDuration = roundDuration ?? DefaultRoundDuration;
+        ResultsDuration = resultsDuration ?? DefaultResultsDuration;
         _listener = Listen(port);
         Port = port;
 
@@ -74,6 +78,8 @@ public sealed class GameHost : IDisposable
     }
 
     public TimeSpan RoundDuration { get; }
+    /// <summary>How long results stay up before the next round starts on its own.</summary>
+    public TimeSpan ResultsDuration { get; }
 
     /// <summary>Secret the host's own client sends in Join, so only it gets host rights.</summary>
     public string HostKey { get; } = Guid.NewGuid().ToString("N");
@@ -151,11 +157,12 @@ public sealed class GameHost : IDisposable
         }
     }
 
-    async Task RoundTimerAsync(Match match, int round, CancellationToken ct)
+    /// <summary>Posts <paramref name="timeUp"/> after <paramref name="delay"/>, unless the host shuts down first.</summary>
+    async Task TimerAsync(TimeSpan delay, HostEvent timeUp, CancellationToken ct)
     {
-        try { await Task.Delay(RoundDuration + SubmitGrace, ct); }
+        try { await Task.Delay(delay, ct); }
         catch (OperationCanceledException) { return; }
-        Post(new RoundTimeUp(match, round));
+        Post(timeUp);
     }
 
     async Task TickLoopAsync(CancellationToken ct)
@@ -198,6 +205,8 @@ public sealed class GameHost : IDisposable
                 return OnDisconnectedAsync(d.Peer);
             case RoundTimeUp t when t.Match == _match: // ignore timers from an earlier match
                 return ApplyAsync(_match.TimeUp(t.Round));
+            case ResultsTimeUp t when t.Match == _match:
+                return ApplyAsync(_match.ResultsTimeUp(t.Round));
             case Tick:
                 DropSilentPeers();
                 return Task.CompletedTask;
@@ -240,12 +249,11 @@ public sealed class GameHost : IDisposable
             case PingMessage ping:
                 return SendAsync(peer, new PongMessage(ping.Seq));
             case StartMatchMessage when player.IsHost && _match is null:
-                _match = new Match(_rules, _players.Select(p => p.Info!), TotalRounds, (int)RoundDuration.TotalSeconds);
+                _match = new Match(_rules, _players.Select(p => p.Info!), TotalRounds,
+                                   (int)RoundDuration.TotalSeconds, (int)ResultsDuration.TotalSeconds);
                 return ApplyAsync(_match.Start());
             case SubmitPathMessage submit when _match is not null:
                 return ApplyAsync(_match.Submit(player.Id, submit.RoundNumber, submit.NodeIds ?? []));
-            case ReadyForNextMessage ready when _match is not null:
-                return ApplyAsync(_match.Ready(player.Id, ready.RoundNumber));
             default:
                 return Task.CompletedTask;
         }
@@ -262,14 +270,16 @@ public sealed class GameHost : IDisposable
         if (_match is not null) await ApplyAsync(_match.PlayerLeft(peer.Info.Id));
     }
 
-    /// <summary>Sends what the match produced, starts round timers, and reopens the lobby when it's over.</summary>
+    /// <summary>Sends what the match produced, starts round/results timers, and reopens the lobby when it's over.</summary>
     async Task ApplyAsync(IReadOnlyList<NetMessage> messages)
     {
         var match = _match;
         foreach (var message in messages)
         {
-            if (message is RoundStartMessage start && match is not null)
-                _ = RoundTimerAsync(match, start.RoundNumber, _cts.Token);
+            if (match is not null && message is RoundStartMessage start)
+                _ = TimerAsync(RoundDuration + SubmitGrace, new RoundTimeUp(match, start.RoundNumber), _cts.Token);
+            if (match is not null && message is RoundResultsMessage results)
+                _ = TimerAsync(ResultsDuration, new ResultsTimeUp(match, results.RoundNumber), _cts.Token);
             await BroadcastAsync(message);
         }
         if (match?.IsOver == true)

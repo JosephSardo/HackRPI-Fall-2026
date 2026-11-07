@@ -15,7 +15,6 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
         <TextBlock Text="{Binding BestRoute}" Opacity="0.7" TextWrapping="Wrap"/>
-        <Button Content="{Binding NextLabel}" Command="{Binding NextCommand}" IsEnabled="{Binding CanContinue}"/>
-        <TextBlock Text="Waiting for everyone else to continue..." IsVisible="{Binding IsWaiting}" Opacity="0.7"/>
+        <TextBlock Text="{Binding TimeLeft}" FontSize="18" Margin="0,8,0,0"/>
     </StackPanel>
 </UserControl>

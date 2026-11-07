@@ -10,7 +10,7 @@ using PathFinder.Network;
 
 namespace PathFinder.ViewModels;
 
-// Placeholder screens for the round flow: Playing -> Waiting -> Results -> (next round | Summary).
+// Placeholder screens for the round flow: Playing -> Waiting -> Results (10s) -> next round, or Summary.
 // The UI owner can replace the views freely; these view models are the contract.
 
 /// <summary>Counts down a round from when RoundStart arrived (laptop clocks don't agree, so no wall-clock times).</summary>
@@ -30,17 +30,15 @@ public interface IShowsSubmissions
 }
 
 /// <summary>Base for screens with a ticking countdown. Stops ticking when disposed (i.e. navigated away from).</summary>
-public abstract partial class CountdownViewModel : ViewModelBase, IShowsSubmissions, IDisposable
+public abstract partial class CountdownViewModel : ViewModelBase, IDisposable
 {
     readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
 
     [ObservableProperty] private string _timeLeft = "";
-    [ObservableProperty] private string _submissions = "";
 
-    protected CountdownViewModel(RoundClock clock, string submissions)
+    protected CountdownViewModel(RoundClock clock)
     {
         Clock = clock;
-        _submissions = submissions;
         _timeLeft = clock.Text;
         _timer.Tick += (_, _) => Tick();
         _timer.Start();
@@ -53,8 +51,15 @@ public abstract partial class CountdownViewModel : ViewModelBase, IShowsSubmissi
     public void Dispose() => _timer.Stop();
 }
 
+/// <summary>Countdown screens shown while a round is being played.</summary>
+public abstract partial class RoundInProgressViewModel(RoundClock clock, string submissions)
+    : CountdownViewModel(clock), IShowsSubmissions
+{
+    [ObservableProperty] private string _submissions = submissions;
+}
+
 /// <summary>The round is on: the player builds and submits a path.</summary>
-public partial class PlayingViewModel : CountdownViewModel
+public partial class PlayingViewModel : RoundInProgressViewModel
 {
     readonly GameClient _client;
     readonly RoundStartMessage _round;
@@ -97,44 +102,38 @@ public partial class PlayingViewModel : CountdownViewModel
 }
 
 /// <summary>Submitted (or out of time): waiting for everyone else.</summary>
-public partial class WaitingViewModel(RoundClock clock, string submissions, bool timedOut) : CountdownViewModel(clock, submissions)
+public partial class WaitingViewModel(RoundClock clock, string submissions, bool timedOut) : RoundInProgressViewModel(clock, submissions)
 {
     public string Message { get; } = timedOut ? "Time's up! You didn't submit a path this round." : "Path submitted!";
 
     protected override void Tick() => TimeLeft = Clock.IsUp ? "Waiting for results..." : $"Waiting for others... {Clock.Text}";
 }
 
-/// <summary>Round results, best first.</summary>
-public partial class ResultsViewModel : ViewModelBase
+/// <summary>Round results, best first. Moves on by itself when the host's results timer runs out.</summary>
+public partial class ResultsViewModel : CountdownViewModel
 {
-    readonly GameClient _client;
+    readonly bool _isLastRound;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanContinue))]
-    private bool _isWaiting;
-
-    public ResultsViewModel(GameClient client, RoundResultsMessage results, bool isLastRound)
+    public ResultsViewModel(RoundResultsMessage results, string? myId, bool isLastRound)
+        : base(new RoundClock(TimeSpan.FromSeconds(results.SecondsUntilNext)))
     {
-        _client = client;
+        _isLastRound = isLastRound;
         Title = $"Round {results.RoundNumber} results";
         Rows = results.Results.Select(r =>
-            $"#{r.Rank}  {r.Name}{(r.PlayerId == client.PlayerId ? " (you)" : "")}  " +
+            $"#{r.Rank}  {r.Name}{(r.PlayerId == myId ? " (you)" : "")}  " +
             (r.Submitted ? $"{r.Score:0.#} points" : "no path, 0 points")).ToList();
         BestRoute = $"Best route: {string.Join(" -> ", results.OptimalNodeIds)} (length {results.OptimalLength:0.#})";
-        NextLabel = isLastRound ? "See final standings" : "Next round";
+        Tick();
     }
 
     public string Title { get; }
     public IReadOnlyList<string> Rows { get; }
     public string BestRoute { get; }
-    public string NextLabel { get; }
-    public bool CanContinue => !IsWaiting;
 
-    [RelayCommand]
-    private async Task NextAsync()
+    protected override void Tick()
     {
-        IsWaiting = true;
-        await _client.ReadyForNextAsync();
+        var seconds = Math.Ceiling(Clock.Remaining.TotalSeconds);
+        TimeLeft = seconds <= 0 ? "Starting..." : $"{(_isLastRound ? "Final standings" : "Next round")} in {seconds:0}s";
     }
 }
 

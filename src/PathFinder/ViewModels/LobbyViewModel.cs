@@ -135,7 +135,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         }
     }
 
-    // ---- match flow: Playing -> Waiting -> Results -> (next round | Summary) -> lobby
+    // ---- match flow: Playing -> Waiting -> Results (timed) -> next round, or Summary -> lobby
 
     void OnRoundStarted(RoundStartMessage start)
     {
@@ -156,8 +156,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
 
     void OnRoundResults(RoundResultsMessage results)
     {
-        if (_client is null) return;
-        Show(new ResultsViewModel(_client, results, isLastRound: results.RoundNumber >= GameHost.TotalRounds));
+        Show(new ResultsViewModel(results, _client?.PlayerId, isLastRound: results.RoundNumber >= GameHost.TotalRounds));
     }
 
     void OnMatchOver(MatchOverMessage over)

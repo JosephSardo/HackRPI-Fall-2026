@@ -6,7 +6,7 @@ namespace PathFinder.Network;
 public static class Protocol
 {
     /// <summary>Bump when messages change, so mismatched builds are turned away instead of misbehaving.</summary>
-    public const int Version = 2;
+    public const int Version = 3;
     public const int DefaultPort = 5050;
     public const int MaxPlayers = 8;
 }
@@ -35,7 +35,6 @@ public sealed record PlayerTotal(string PlayerId, string Name, double TotalScore
 [JsonDerivedType(typeof(SubmitPathMessage), "SubmitPath")]
 [JsonDerivedType(typeof(PlayerSubmittedMessage), "PlayerSubmitted")]
 [JsonDerivedType(typeof(RoundResultsMessage), "RoundResults")]
-[JsonDerivedType(typeof(ReadyForNextMessage), "ReadyForNext")]
 [JsonDerivedType(typeof(MatchOverMessage), "MatchOver")]
 public abstract record NetMessage;
 
@@ -47,8 +46,6 @@ public sealed record StartMatchMessage : NetMessage;
 public sealed record PingMessage(long Seq) : NetMessage;
 /// <summary>The player's one submission for the round: node IDs from start to end.</summary>
 public sealed record SubmitPathMessage(int RoundNumber, List<int> NodeIds) : NetMessage;
-/// <summary>Player left the results screen and is ready for the next round.</summary>
-public sealed record ReadyForNextMessage(int RoundNumber) : NetMessage;
 
 // Host -> client
 public sealed record WelcomeMessage(string PlayerId) : NetMessage;
@@ -62,8 +59,12 @@ public sealed record PongMessage(long Seq) : NetMessage;
 public sealed record RoundStartMessage(int RoundNumber, int TotalRounds, int StartId, int EndId, int DurationSeconds) : NetMessage;
 /// <summary>Someone submitted (no path included, so no spoilers).</summary>
 public sealed record PlayerSubmittedMessage(int RoundNumber, string PlayerId, int SubmittedCount, int PlayerCount) : NetMessage;
-/// <summary>Everyone submitted or time ran out. Results are sorted best first.</summary>
+/// <summary>
+/// Everyone submitted or time ran out. Results are sorted best first. The next round (or, after
+/// the last round, MatchOver) follows automatically after SecondsUntilNext.
+/// </summary>
 public sealed record RoundResultsMessage(int RoundNumber, List<RoundResult> Results,
-                                         List<int> OptimalNodeIds, double OptimalLength) : NetMessage;
+                                         List<int> OptimalNodeIds, double OptimalLength,
+                                         int SecondsUntilNext) : NetMessage;
 /// <summary>Last round finished. Standings are sorted best first.</summary>
 public sealed record MatchOverMessage(List<PlayerTotal> Standings) : NetMessage;

@@ -6,7 +6,8 @@ namespace PathFinder.Network;
 /// <summary>
 /// The rules of one match, with no networking, threads or timers. The host tells it what
 /// happened and broadcasts whatever messages it returns. When it returns a RoundStart, the
-/// host is expected to call <see cref="TimeUp"/> for that round once the time runs out.
+/// host is expected to call <see cref="TimeUp"/> for that round once the time runs out; when
+/// it returns RoundResults, <see cref="ResultsTimeUp"/> once the results have been shown.
 /// Not thread-safe: the host calls it from one place only.
 /// </summary>
 public sealed class Match
@@ -16,6 +17,7 @@ public sealed class Match
     readonly IRoundRules _rules;
     readonly int _totalRounds;
     readonly int _roundSeconds;
+    readonly int _resultsSeconds;
     readonly Dictionary<string, string> _names;        // everyone who started; kept after they leave
     readonly HashSet<string> _connected;
     readonly Dictionary<string, double> _totals = [];
@@ -25,13 +27,13 @@ public sealed class Match
     int _round, _startId, _endId;
     readonly List<string> _roundPlayers = [];          // who was here when the round started
     readonly Dictionary<string, List<int>> _submissions = [];
-    readonly HashSet<string> _ready = [];
 
-    public Match(IRoundRules rules, IEnumerable<PlayerInfo> players, int totalRounds, int roundSeconds)
+    public Match(IRoundRules rules, IEnumerable<PlayerInfo> players, int totalRounds, int roundSeconds, int resultsSeconds)
     {
         _rules = rules;
         _totalRounds = totalRounds;
         _roundSeconds = roundSeconds;
+        _resultsSeconds = resultsSeconds;
         _names = players.ToDictionary(p => p.Id, p => p.Name);
         _connected = [.. _names.Keys];
         foreach (var id in _names.Keys) _totals[id] = 0;
@@ -59,12 +61,11 @@ public sealed class Match
     public IReadOnlyList<NetMessage> TimeUp(int round) =>
         _phase == Phase.Playing && round == _round ? EndRound() : [];
 
-    /// <summary>A player left the results screen.</summary>
-    public IReadOnlyList<NetMessage> Ready(string playerId, int round)
+    /// <summary>The results for a round have been shown long enough: next round, or the end of the match.</summary>
+    public IReadOnlyList<NetMessage> ResultsTimeUp(int round)
     {
         if (_phase != Phase.Results || round != _round) return [];
-        _ready.Add(playerId);
-        return AdvanceIfEveryoneReady();
+        return _round < _totalRounds ? StartRound(_round + 1) : EndMatch();
     }
 
     /// <summary>A player disconnected: carry on without them, or stop if nobody is left to play against.</summary>
@@ -72,12 +73,7 @@ public sealed class Match
     {
         if (IsOver || !_connected.Remove(playerId)) return [];
         if (_connected.Count == 0 || (_startedWithOpponents && _connected.Count < 2)) return EndMatch();
-        return _phase switch
-        {
-            Phase.Playing when EveryoneConnectedSubmitted() => EndRound(),
-            Phase.Results => AdvanceIfEveryoneReady(),
-            _ => [],
-        };
+        return _phase == Phase.Playing && EveryoneConnectedSubmitted() ? EndRound() : [];
     }
 
     List<NetMessage> StartRound(int round)
@@ -87,7 +83,6 @@ public sealed class Match
         _roundPlayers.Clear();
         _roundPlayers.AddRange(_names.Keys.Where(_connected.Contains)); // join order, so ties list predictably
         _submissions.Clear();
-        _ready.Clear();
         _phase = Phase.Playing;
         return [new RoundStartMessage(round, _totalRounds, _startId, _endId, _roundSeconds)];
     }
@@ -114,13 +109,7 @@ public sealed class Match
 
         var (optimalPath, optimalLength) = _rules.OptimalRoute(_startId, _endId);
         _phase = Phase.Results;
-        return [new RoundResultsMessage(_round, results, [.. optimalPath], optimalLength)];
-    }
-
-    List<NetMessage> AdvanceIfEveryoneReady()
-    {
-        if (!_connected.All(_ready.Contains)) return [];
-        return _round < _totalRounds ? StartRound(_round + 1) : EndMatch();
+        return [new RoundResultsMessage(_round, results, [.. optimalPath], optimalLength, _resultsSeconds)];
     }
 
     List<NetMessage> EndMatch()

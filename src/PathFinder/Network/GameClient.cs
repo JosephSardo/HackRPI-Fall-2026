@@ -103,9 +103,6 @@ public sealed class GameClient : IDisposable
         return true;
     }
 
-    /// <summary>Tells the host this player is done with the results screen.</summary>
-    public Task ReadyForNextAsync() => SendAsync(new ReadyForNextMessage(CurrentRound));
-
     Task SendAsync(NetMessage message) => _connection?.SendAsync(message) ?? Task.CompletedTask;
 
     static async Task<IPAddress> ResolveAsync(string address)
