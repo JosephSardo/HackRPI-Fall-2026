@@ -1,0 +1,20 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PathFinder.ViewModels"
+             xmlns:sys="using:System"
+             x:Class="PathFinder.Views.ResultsView"
+             x:DataType="vm:ResultsViewModel">
+    <!-- Placeholder layout: restyle freely; bindings are the contract. -->
+    <StackPanel Width="460" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="Bold"/>
+        <ItemsControl ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="sys:String">
+                    <TextBlock Text="{Binding}" Margin="8,2"/>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{Binding BestRoute}" Opacity="0.7" TextWrapping="Wrap"/>
+        <TextBlock Text="{Binding TimeLeft}" FontSize="18" Margin="0,8,0,0"/>
+    </StackPanel>
+</UserControl>
