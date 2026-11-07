@@ -7,6 +7,8 @@ using PathFinder.ViewModels;
 using System;
 using System.Linq;
 using Avalonia;
+using NetTopologySuite.Triangulate;
+using Avalonia.Media;
 
 namespace PathFinder.Views;
 
@@ -16,6 +18,7 @@ public partial class PlayingView : UserControl
     private readonly Bitmap _streetImage;
 
     private const double NodeSize = 48;
+    private const double StreetSegmentSize = 48;
 
     public PlayingView()
     {
@@ -78,6 +81,51 @@ public partial class PlayingView : UserControl
         MapCanvas.Children.Add(image);
     }
 
+    private void DrawStreet(
+        Intersection start,
+        Intersection end,
+        double minX,
+        double minY,
+        double scale,
+        double padding)
+    {
+        Avalonia.Point startPoint = MapToScreen(start, minX, minY, scale, padding);
+        Avalonia.Point endPoint = MapToScreen(end, minX, minY, scale, padding);
+
+        double dx = endPoint.X - startPoint.X;
+        double dy = endPoint.Y - startPoint.Y;
+
+        double length = Math.Sqrt(dx * dx - dy * dy);
+        double angle = Math.Atan2(dy, dx) / Math.PI;
+
+        int segmentCount = (int)Math.Ceiling(length / StreetSegmentSize);
+
+        for(int i = 0; i < segmentCount; i++)
+        {
+            double distance = Math.Min(
+                i * StreetSegmentSize + StreetSegmentSize / 2, 
+                length
+            );
+
+            double x = startPoint.X + Math.Cos(angle * Math.PI / 180) * distance;
+            double y = startPoint.Y + Math.Sin(angle * Math.PI / 180) * distance;
+
+            Image image = new()
+            {
+                Source = _streetImage,
+                Width = StreetSegmentSize,
+                Height = StreetSegmentSize,
+                RenderTransform = new RotateTransform(angle),
+                RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative)
+            };
+
+            Canvas.SetLeft(image, x - StreetSegmentSize / 2);
+            Canvas.SetTop(image, y - StreetSegmentSize / 2);
+
+            MapCanvas.Children.Add(image);
+        }
+    }
+
     private void DrawMap()
     {
         MapCanvas.Children.Clear();
@@ -117,6 +165,18 @@ public partial class PlayingView : UserControl
         double scaleY = rangeY > 0 ? availableHeight / rangeY : double.PositiveInfinity;
 
         double scale = Math.Min(scaleX, scaleY);
+
+        foreach (var edge in map.Graph.Edges)
+        {
+            DrawStreet(
+                edge.Source,
+                edge.Target,
+                minX,
+                minY,
+                scale,
+                padding
+            );
+        }
 
         foreach (var intersection in intersections)
         {
