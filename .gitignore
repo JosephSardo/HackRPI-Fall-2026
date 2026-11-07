@@ -25,3 +25,6 @@ desktop.ini
 # Local environment / secrets
 .env
 .env.*
+
+# Claude Code agent worktrees (full repo copies)
+.claude/worktrees/
