@@ -21,7 +21,7 @@ public partial class MainWindow : Window
                 var intersections = await loader.LoadIntersections();
                 Debug.WriteLine($"[DEBUG] LoadIntersections returned {intersections.Count} intersections:");
                 foreach (var i in intersections)
-                    Debug.WriteLine($"[DEBUG]   {i.Id}: {i.Latitude}, {i.Longitude}");
+                    Debug.WriteLine($"[DEBUG]   {i.X}, {i.Y}");
             }
             catch (Exception ex)
             {

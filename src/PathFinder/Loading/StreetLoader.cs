@@ -9,13 +9,12 @@ using System.Threading.Tasks;
 
 namespace Loading;
 
-
 public class StreetLoader : IDisposable
 {
     private const string Endpoint = "https://overpass-api.de/api/interpreter";
     private const int MaxAttempts = 5;
-    private static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(1);
-    private static readonly TimeSpan MaxDelay = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan InitialTimeout = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan MaxTimeout = TimeSpan.FromSeconds(30);
     private const double EarthRadiusMeters = 6_371_000;
 
     // Drivable public streets. "service" (driveways, parking aisles) is excluded so
@@ -135,12 +134,10 @@ public class StreetLoader : IDisposable
 
     private async Task<string> PostQuery(string query, CancellationToken cancellationToken)
     {
-        int backoff = 
+        TimeSpan timeout = InitialTimeout;
 
         for (var attempt = 1; ; attempt++)
         {
-            TimeSpan? retryAfter = null;
-
             try
             {
                 // Fresh content per attempt; a sent HttpContent shouldn't be reused.
@@ -152,8 +149,6 @@ public class StreetLoader : IDisposable
 
                 if (!IsTransient(response.StatusCode) || attempt >= MaxAttempts)
                     response.EnsureSuccessStatusCode(); // throws
-
-                retryAfter = GetRetryAfter(response);
             }
             catch (HttpRequestException ex) when (ex.StatusCode is null && attempt < MaxAttempts)
             {
@@ -164,7 +159,8 @@ public class StreetLoader : IDisposable
                 // HttpClient timeout — retry.
             }
 
-            await Task.Delay(retryAfter ?? ComputeBackoff(attempt), cancellationToken);
+            await Task.Delay(timeout, cancellationToken);
+            timeout = timeout > MaxTimeout ? MaxTimeout : TimeSpan.FromSeconds(2 * timeout.Seconds);
         }
     }
 
@@ -172,23 +168,4 @@ public class StreetLoader : IDisposable
         status == HttpStatusCode.TooManyRequests      // 429: Overpass rate limit
         || status == HttpStatusCode.RequestTimeout    // 408
         || (int)status >= 500;                        // 502/503/504: Overpass overloaded
-
-    private static TimeSpan? GetRetryAfter(HttpResponseMessage response)
-    {
-        var header = response.Headers.RetryAfter;
-        if (header is null) return null;
-
-        var delay = header.Delta
-            ?? (header.Date.HasValue ? header.Date.Value - DateTimeOffset.UtcNow : (TimeSpan?)null);
-
-        if (delay is null || delay <= TimeSpan.Zero) return null;
-        return delay > MaxDelay ? MaxDelay : delay;
-    }
-
-    // Exponential backoff with full jitter: random in [0, min(MaxDelay, Initial * 2^(attempt-1))].
-    private static TimeSpan ComputeBackoff(int attempt)
-    {
-        var capMs = Math.Min(MaxDelay.TotalMilliseconds, InitialDelay.TotalMilliseconds * Math.Pow(2, attempt - 1));
-        return TimeSpan.FromMilliseconds(Random.Shared.NextDouble() * capMs);
-    }
 }
