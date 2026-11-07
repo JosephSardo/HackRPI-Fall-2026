@@ -83,8 +83,14 @@ public class GameService
 
     //returns player's score, 0 to 100. The closer the route is to the optimal route, the closer the score is to 100
     //If there is no possible route, returns -1
+    //If the player's route is incomplete, returns -2
     public int CalculatePlayerScore()
     {
+        if (!PathIsComplete())
+        {
+            return -2;
+        }
+
         double OptimalDistance = BestPathLength();
         if(OptimalDistance == -1)
         {
