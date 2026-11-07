@@ -15,6 +15,8 @@ public partial class PlayingView : UserControl
     private readonly Bitmap _nodeImage;
     private readonly Bitmap _streetImage;
 
+    private const double NodeSize = 48;
+
     public PlayingView()
     {
         InitializeComponent();
@@ -66,12 +68,12 @@ public partial class PlayingView : UserControl
         Image image = new()
         {
             Source = _nodeImage,
-            Width = 32,
-            Height = 32
+            Width = NodeSize,
+            Height = NodeSize
         };
 
-        Canvas.SetLeft(image, position.X - 16);
-        Canvas.SetTop(image, position.Y - 16);
+        Canvas.SetLeft(image, position.X - NodeSize / 2);
+        Canvas.SetTop(image, position.Y - NodeSize / 2);
 
         MapCanvas.Children.Add(image);
     }
