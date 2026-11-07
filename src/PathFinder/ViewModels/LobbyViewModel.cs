@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PathFinder.Network;
@@ -16,7 +15,6 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
 {
     GameHost? _host;
     GameClient? _client;
-    int _port = Protocol.DefaultPort;
 
     [ObservableProperty] private string _playerName = Environment.UserName;
     [ObservableProperty] private string _joinAddress = "";
@@ -43,7 +41,7 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         try
         {
             _host = new GameHost();
-            _host.Start(_port);
+            _host.Start();
             await ConnectAsync("127.0.0.1", _host.Port, _host.HostKey);
             IsHost = true;
             var addresses = NetInfo.LanAddresses();
@@ -53,7 +51,7 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         }
         catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
         {
-            Fail($"Port {_port} is already in use. Is another game (or NetCheck) already hosting on this laptop?");
+            Fail($"Port {Protocol.DefaultPort} is already in use. Is another game (or NetCheck) already hosting on this laptop?");
         }
         catch (NetworkException ex)
         {
@@ -78,7 +76,7 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         Status = $"Connecting to {JoinAddress.Trim()}...";
         try
         {
-            await ConnectAsync(JoinAddress, _port, hostKey: null);
+            await ConnectAsync(JoinAddress, Protocol.DefaultPort, hostKey: null);
         }
         catch (NetworkException ex)
         {
@@ -167,29 +165,6 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         IsInLobby = false;
         MatchStarted = false;
         HostAddresses = null;
-    }
-
-    /// <summary>
-    /// Shortcuts for testing several windows on one laptop:
-    /// <c>--name Bob</c>, <c>--host</c>, or <c>--join 127.0.0.1</c>, plus <c>--port 5060</c>.
-    /// </summary>
-    public void ApplyCommandLine(string[] args)
-    {
-        string? Value(string flag)
-        {
-            var i = Array.IndexOf(args, flag);
-            return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
-        }
-
-        if (Value("--name") is { } name) PlayerName = name;
-        if (int.TryParse(Value("--port"), out var port)) _port = port;
-        if (args.Contains("--host"))
-            Dispatcher.UIThread.Post(() => HostCommand.Execute(null));
-        else if (Value("--join") is { } address)
-        {
-            JoinAddress = address;
-            Dispatcher.UIThread.Post(() => JoinCommand.Execute(null));
-        }
     }
 
     public void Dispose() => Cleanup();
