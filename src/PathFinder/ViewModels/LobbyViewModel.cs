@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PathFinder.Mapping;
 using PathFinder.Network;
+using PathFinder.Services;
 
 namespace PathFinder.ViewModels;
 
@@ -189,6 +190,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     {
         var client = new GameClient();
         client.PlayersChanged += OnPlayersChanged;
+        client.MatchStarted += OnMatchStarted;
         client.RoundStarted += OnRoundStarted;
         client.PlayerSubmitted += OnPlayerSubmitted;
         client.RoundResultsReady += OnRoundResults;
@@ -216,15 +218,27 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
 
     // ---- match flow: Playing -> Waiting -> Results (timed) -> next round, or Summary -> lobby
 
+    /// <summary>One per match, on this player's copy of the host's map. Reset each round with the round's start/end.</summary>
+    GameService? _game;
+
+    void OnMatchStarted(MatchStartMessage _)
+    {
+        if (_client?.Map is { } map) _game = new GameService(map);
+    }
+
     void OnRoundStarted(RoundStartMessage start)
     {
-        if (_client is null) return;
+        if (_client?.Map is not { } map) return;
+        _game ??= new GameService(map);
+        _game.SetStart(start.StartId); // also resets the player's route
+        _game.SetEnd(start.EndId);
+
         MatchStarted = true;
         _totalRounds = start.TotalRounds;
         _clock = new RoundClock(TimeSpan.FromSeconds(start.DurationSeconds));
         _submissions = "";
         var clock = _clock;
-        Show(new PlayingViewModel(_client, start, clock, _submissions,
+        Show(new PlayingViewModel(_client, _game, start, clock, _submissions,
             done: timedOut => Show(new WaitingViewModel(clock, _submissions, timedOut))));
     }
 
@@ -242,6 +256,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     void OnMatchOver(MatchOverMessage over)
     {
         MatchStarted = false; // host can start another match from the lobby
+        _game = null;
         Show(new SummaryViewModel(over, _client?.PlayerId, backToLobby: () => Show(null)));
     }
 
@@ -271,6 +286,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         if (_client is not null)
         {
             _client.PlayersChanged -= OnPlayersChanged;
+            _client.MatchStarted -= OnMatchStarted;
             _client.RoundStarted -= OnRoundStarted;
             _client.PlayerSubmitted -= OnPlayerSubmitted;
             _client.RoundResultsReady -= OnRoundResults;
@@ -279,6 +295,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
             _client.Dispose();
             _client = null;
         }
+        _game = null;
         _host?.Dispose();
         _host = null;
         Players.Clear();
