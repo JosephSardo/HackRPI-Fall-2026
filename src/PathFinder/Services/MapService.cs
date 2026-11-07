@@ -8,6 +8,11 @@ public static class MapService
 {
     private static int CurrentLevel = 1;
 
+    //decimal places coordinates are rounded to before being used as lookup keys.
+    //StreetLoader returns latitude/longitude in degrees, where 0.1 is ~11 km, so 1 decimal
+    //made distinct intersections collide. 6 decimals is ~0.1 m in degrees (and harmless for metres)
+    private const int CoordinateDecimals = 6;
+
     public static CityMap CreateMap(
         List<(double X, double Y)> intersections,
         List<(
@@ -31,8 +36,8 @@ public static class MapService
         //construct and add intersections
         foreach (var (x, y) in intersections)
         {
-            double roundedX = Math.Round(x, 1);
-            double roundedY = Math.Round(y, 1);
+            double roundedX = Math.Round(x, CoordinateDecimals);
+            double roundedY = Math.Round(y, CoordinateDecimals);
             
             Intersection newIntersection = new(NextIntersectionId, roundedX, roundedY);
 
@@ -48,11 +53,11 @@ public static class MapService
             //distance is a double
             //start and end are (double x, double y) tuples
 
-            double x1 = Math.Round(start.X, 1);
-            double y1 = Math.Round(start.Y, 1);
+            double x1 = Math.Round(start.X, CoordinateDecimals);
+            double y1 = Math.Round(start.Y, CoordinateDecimals);
 
-            double x2 = Math.Round(end.X, 1);
-            double y2 = Math.Round(end.Y, 1);
+            double x2 = Math.Round(end.X, CoordinateDecimals);
+            double y2 = Math.Round(end.Y, CoordinateDecimals);
 
             Intersection startInter = intersectionLookup[(x1, y1)];
             Intersection endInter = intersectionLookup[(x2, y2)];
