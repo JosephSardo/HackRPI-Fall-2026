@@ -1,17 +1,29 @@
 name: Keep PRs in sync with main
 
-# Whenever main moves (or a PR is opened/updated), try to merge main into every
-# open PR branch:
-#   - clean merge  -> push the merge commit to the PR branch automatically
-#   - conflicts    -> label the PR `merge-conflict` and comment with the
-#                     conflicting files so the author can fix them
-#   - resolved     -> remove the label once the PR merges cleanly again
+# Whenever main moves or a PR into main changes, go through every open PR into
+# main (PRs from forks are skipped, since we can't push to them):
+#   - sync       -> merge main into the PR branch and push it, if that's clean
+#   - conflicts  -> label the PR `merge-conflict` and comment once with the
+#                   conflicting files; the PR is NOT merged
+#   - resolved   -> remove the `merge-conflict` label once it's clean again
+#   - auto-merge -> if the PR is clean, not a draft and has no `do-not-merge`
+#                   label, squash-merge it into main (same run, right after
+#                   the sync)
+#
+# Escape hatches: mark the PR as a draft, or add the `do-not-merge` label.
+# Removing the label / marking it ready for review re-triggers this workflow.
+#
+# Merges and pushes made with GITHUB_TOKEN don't start new workflow runs, so a
+# merge here won't fire the `push: main` trigger. Instead, after any merge the
+# job goes through all open PRs again (bounded number of passes), so the rest
+# get re-synced against the new main. Nothing re-dispatches the workflow, so
+# it can't loop.
 
 on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
     branches: [main]
   workflow_dispatch:
 
@@ -20,76 +32,101 @@ permissions:
   pull-requests: write
   issues: write
 
+# One run at a time, so two PRs can't race to merge. GitHub keeps at most one
+# pending run per group (newer pending runs replace older ones), which is fine
+# because every run handles ALL open PRs, not just the one that triggered it.
 concurrency:
   group: sync-prs
   cancel-in-progress: false
 
 jobs:
   sync:
+    # Fork PRs get a read-only token, so there's nothing useful we can do.
+    if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Merge main into open PRs
+      - name: Sync and auto-merge open PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LABEL: merge-conflict
-          # On pull_request events only handle that PR; otherwise handle all.
-          ONLY_PR: ${{ github.event.pull_request.number }}
+          HOLD_LABEL: do-not-merge
+          MAX_PASSES: 10        # upper bound on "re-sync after a merge" passes
+          MERGEABLE_TIMEOUT: 90 # seconds to wait for GitHub to compute mergeability
         run: |
-          set -uo pipefail
+          # No `-e`: errors are handled per PR so one bad PR doesn't stop the rest.
+          set +e -uo pipefail
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           gh label create "$LABEL" --color B60205 \
             --description "This PR has merge conflicts with main" --force >/dev/null
+          gh label create "$HOLD_LABEL" --color FBCA04 \
+            --description "Don't auto-merge this PR" --force >/dev/null
 
-          if [ -n "$ONLY_PR" ]; then
-            prs=$(gh pr view "$ONLY_PR" --json number,headRefName,isCrossRepository,labels \
-                  --jq '[.]')
-          else
-            prs=$(gh pr list --state open --base main --limit 100 \
-                  --json number,headRefName,isCrossRepository,labels)
-          fi
+          # Pick an allowed merge method, preferring squash.
+          method=$(gh api "repos/$GITHUB_REPOSITORY" --jq '
+            if .allow_squash_merge then "squash"
+            elif .allow_merge_commit then "merge"
+            elif .allow_rebase_merge then "rebase"
+            else "" end')
+          echo "Merge method: ${method:-none allowed, auto-merge disabled}"
 
-          git fetch origin main
+          # Wait until GitHub has seen $2 as the head of PR $1 and finished
+          # computing mergeability. Prints the PR JSON, or fails on timeout.
+          wait_for_mergeable() {
+            local num=$1 sha=$2 deadline=$((SECONDS + MERGEABLE_TIMEOUT)) info
+            while :; do
+              info=$(gh pr view "$num" --json state,isDraft,labels,mergeable,headRefOid)
+              if [ "$(jq -r .headRefOid <<<"$info")" = "$sha" ] &&
+                 [ "$(jq -r .mergeable <<<"$info")" != "UNKNOWN" ]; then
+                echo "$info"; return 0
+              fi
+              [ "$SECONDS" -ge "$deadline" ] && return 1
+              sleep 5
+            done
+          }
 
-          echo "$prs" | jq -c '.[]' | while read -r pr; do
+          # Sync one PR with main and merge it if allowed.
+          # Returns 0 only if the PR was merged into main.
+          process_pr() {
+            local pr=$1 num branch fork labeled held draft info sha
             num=$(jq -r .number <<<"$pr")
             branch=$(jq -r .headRefName <<<"$pr")
             fork=$(jq -r .isCrossRepository <<<"$pr")
+            draft=$(jq -r .isDraft <<<"$pr")
             labeled=$(jq -r --arg l "$LABEL" '[.labels[].name] | index($l) != null' <<<"$pr")
-
-            echo "::group::PR #$num ($branch)"
+            held=$(jq -r --arg l "$HOLD_LABEL" '[.labels[].name] | index($l) != null' <<<"$pr")
 
             if [ "$fork" = "true" ]; then
-              echo "Skipping: PR comes from a fork, can't push to it."
-              echo "::endgroup::"; continue
+              echo "Skipping: PR comes from a fork, can't push to it."; return 1
             fi
 
-            git fetch origin "$branch" && git checkout -B "$branch" "origin/$branch" || {
-              echo "::warning::Could not check out $branch"; echo "::endgroup::"; continue; }
+            if ! { git fetch origin main "$branch" && git checkout -B "$branch" "origin/$branch"; }; then
+              echo "::warning::Could not check out $branch"; return 1
+            fi
 
+            # --- 1. Sync main into the PR branch -------------------------------
             if git merge-base --is-ancestor origin/main HEAD; then
               echo "Already up to date with main."
-              [ "$labeled" = "true" ] && gh pr edit "$num" --remove-label "$LABEL"
             elif git merge --no-edit origin/main -m "Merge main into $branch (auto-sync)"; then
-              if git push origin "HEAD:$branch"; then
-                echo "Merged main cleanly and pushed."
-              else
+              if ! git push origin "HEAD:$branch"; then
                 echo "::warning::Push to $branch failed (branch probably moved); will retry next run."
+                return 1
               fi
-              [ "$labeled" = "true" ] && gh pr edit "$num" --remove-label "$LABEL"
+              echo "Merged main cleanly and pushed."
             else
+              local files
               files=$(git diff --name-only --diff-filter=U | sed 's/^/- `/; s/$/`/')
               git merge --abort
               echo "Conflicts detected:"; echo "$files"
               if [ "$labeled" != "true" ]; then
                 gh pr edit "$num" --add-label "$LABEL"
                 gh pr comment "$num" --body "$(cat <<MSG
-          :warning: **This PR has merge conflicts with \`main\`** and couldn't be updated automatically.
+          :warning: **This PR has merge conflicts with \`main\`** and couldn't be updated or auto-merged.
 
           Conflicting files:
           $files
@@ -104,6 +141,54 @@ jobs:
           MSG
                 )"
               fi
+              return 1
             fi
-            echo "::endgroup::"
+            [ "$labeled" = "true" ] && gh pr edit "$num" --remove-label "$LABEL"
+
+            # --- 2. Auto-merge into main ---------------------------------------
+            [ -z "$method" ] && return 1
+            if [ "$draft" = "true" ] || [ "$held" = "true" ]; then
+              echo "Not merging: draft or '$HOLD_LABEL' label."; return 1
+            fi
+
+            sha=$(git rev-parse HEAD)
+            if ! info=$(wait_for_mergeable "$num" "$sha"); then
+              echo "::warning::GitHub didn't report mergeability for #$num in time; will retry next run."
+              return 1
+            fi
+
+            # Re-check the escape hatches with fresh data right before merging.
+            if [ "$(jq -r '.state' <<<"$info")" != "OPEN" ] ||
+               [ "$(jq -r '.isDraft' <<<"$info")" = "true" ] ||
+               [ "$(jq -r --arg l "$HOLD_LABEL" '[.labels[].name] | index($l) != null' <<<"$info")" = "true" ]; then
+              echo "Not merging: PR closed, became a draft, or got the '$HOLD_LABEL' label."; return 1
+            fi
+            if [ "$(jq -r .mergeable <<<"$info")" != "MERGEABLE" ]; then
+              echo "Not merging: GitHub says mergeable=$(jq -r .mergeable <<<"$info")."; return 1
+            fi
+
+            # --match-head-commit: refuse if someone pushed after our checks.
+            if gh pr merge "$num" "--$method" --match-head-commit "$sha"; then
+              echo "Merged #$num into main ($method)."; return 0
+            fi
+            echo "::warning::Merging #$num failed; will retry next run."
+            return 1
+          }
+
+          # Merging moves main, so after any merge go around again to re-sync
+          # the remaining PRs. Every merge closes a PR, so this always ends;
+          # MAX_PASSES is just a safety net.
+          for pass in $(seq 1 "$MAX_PASSES"); do
+            echo "=== Pass $pass ==="
+            merged_any=false
+            prs=$(gh pr list --state open --base main --limit 100 \
+                  --json number,headRefName,isCrossRepository,isDraft,labels)
+            while read -r pr; do
+              [ -z "$pr" ] && continue
+              echo "::group::PR #$(jq -r .number <<<"$pr") ($(jq -r .headRefName <<<"$pr"))"
+              process_pr "$pr" </dev/null && merged_any=true  # keep gh off the loop's stdin
+              echo "::endgroup::"
+            done < <(jq -c '.[]' <<<"$prs")
+            [ "$merged_any" = "true" ] || break
           done
+          exit 0
