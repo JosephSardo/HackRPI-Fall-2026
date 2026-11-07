@@ -23,14 +23,26 @@ public class PlayerRoute
     //adds a street to the end of the route. returns true iff operation was successful
     public bool AddStreet(Street street, int endId)
     {
-        if (Path[Path.Count - 1] == street.Start.Id)
+        //the map is undirected, so the street can be walked from either end
+        int last = Path[Path.Count - 1];
+        int next;
+        if (last == street.Start.Id)
         {
-            Path.Add(street.End.Id);
-            TotalDistance += street.Distance;
-            IsComplete = Path[Path.Count - 1] == endId;
-            return true;
+            next = street.End.Id;
         }
-        return false;
+        else if (last == street.End.Id)
+        {
+            next = street.Start.Id;
+        }
+        else
+        {
+            return false;
+        }
+
+        Path.Add(next);
+        TotalDistance += street.Distance;
+        IsComplete = Path[Path.Count - 1] == endId;
+        return true;
     }
 
     //removes the last street from the route. returns true iff operation was successful
@@ -41,7 +53,12 @@ public class PlayerRoute
             return false;
         }
 
-        if(street.End.Id != Path[Path.Count - 1])
+        //the street must connect the last two nodes of the path, in either orientation
+        int last = Path[Path.Count - 1];
+        int previous = Path[Path.Count - 2];
+        bool forward = street.Start.Id == previous && street.End.Id == last;
+        bool backward = street.Start.Id == last && street.End.Id == previous;
+        if(!forward && !backward)
         {
             return false;
         }
