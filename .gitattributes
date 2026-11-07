@@ -1,0 +1,23 @@
+# Store text files with LF in the repo and check them out with LF everywhere
+# (Windows and WSL alike), so core.autocrlf settings can't cause whitespace-only
+# "modified" files. Git still detects binary files on its own; the explicit
+# entries below just make sure they're never touched.
+* text=auto eol=lf
+
+# Visual Studio expects CRLF in solution files.
+*.sln text eol=crlf
+
+# Binary files: no line-ending conversion, no text diffs.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+*.dll binary
+*.exe binary
+*.pdb binary
