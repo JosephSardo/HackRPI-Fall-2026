@@ -9,8 +9,6 @@ using System.Threading.Tasks;
 
 namespace Loading;
 
-/// <summary>A street intersection: an OSM node where three or more street segments meet.</summary>
-public sealed record Intersection(long Id, double Latitude, double Longitude);
 
 public class StreetLoader : IDisposable
 {
@@ -55,7 +53,9 @@ public class StreetLoader : IDisposable
     }
 
     /// <summary>Returns every street intersection within <see cref="RadiusMeters"/> of the center.</summary>
-    public async Task<IReadOnlyList<Intersection>> LoadIntersections(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<(double X, double Y)>> LoadIntersections(
+        CancellationToken cancellationToken = default
+    )
     {
         // Ways with their ordered node refs, then the coordinates of every referenced node.
         // InvariantCulture so coordinates always use '.' as the decimal separator.
@@ -71,7 +71,7 @@ public class StreetLoader : IDisposable
         return ParseIntersections(json);
     }
 
-    private List<Intersection> ParseIntersections(string json)
+    private List<(double X, double Y)> ParseIntersections(string json)
     {
         using var doc = JsonDocument.Parse(json);
 
@@ -107,14 +107,14 @@ public class StreetLoader : IDisposable
 
         // Degree >= 3 means a real junction. Degree 2 is either a mid-street node or a spot
         // where OSM splits one street into two ways, and degree 1 is a dead end.
-        var result = new List<Intersection>();
+        var result = new List<(double X, double Y)>();
         foreach (var (id, adjacent) in neighbors)
         {
             if (adjacent.Count < 3 || !coords.TryGetValue(id, out var c)) continue;
 
             // Ways that only partly overlap the circle bring in nodes outside it.
             if (DistanceMeters(Latitude, Longitude, c.Lat, c.Lon) <= RadiusMeters)
-                result.Add(new Intersection(id, c.Lat, c.Lon));
+                result.Add(new (c.Lat, c.Lon));
         }
         return result;
 
@@ -135,6 +135,8 @@ public class StreetLoader : IDisposable
 
     private async Task<string> PostQuery(string query, CancellationToken cancellationToken)
     {
+        int backoff = 
+
         for (var attempt = 1; ; attempt++)
         {
             TimeSpan? retryAfter = null;
