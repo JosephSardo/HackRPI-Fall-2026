@@ -41,6 +41,9 @@ public class CityMap
         Intersection start = Intersections[street.Start.Id];
         Intersection end = Intersections[street.End.Id];
 
+        //undirected edges must be created with the lower-Id intersection first, or QuikGraph throws
+        if (start.Id > end.Id) (start, end) = (end, start);
+
         //create an edge using the street's endpoints
         TaggedUndirectedEdge<Intersection, Street> newEdge = new TaggedUndirectedEdge<Intersection, Street>(
             start,
