@@ -1,6 +1,21 @@
-﻿namespace PathFinder.ViewModels;
+﻿using System;
+using CommunityToolkit.Mvvm.ComponentModel;
 
-public partial class MainWindowViewModel : ViewModelBase
+namespace PathFinder.ViewModels;
+
+/// <summary>Owns which screen is showing. Screens are view models; ViewLocator finds their views.</summary>
+public partial class MainWindowViewModel : ViewModelBase, IDisposable
 {
-    public string Greeting { get; } = "Welcome to Avalonia!";
+    [ObservableProperty] private ViewModelBase _currentScreen;
+
+    public MainWindowViewModel() : this([]) { }
+
+    public MainWindowViewModel(string[] args)
+    {
+        var lobby = new LobbyViewModel();
+        lobby.ApplyCommandLine(args);
+        _currentScreen = lobby;
+    }
+
+    public void Dispose() => (CurrentScreen as IDisposable)?.Dispose();
 }
