@@ -1,0 +1,109 @@
+name: Keep PRs in sync with main
+
+# Whenever main moves (or a PR is opened/updated), try to merge main into every
+# open PR branch:
+#   - clean merge  -> push the merge commit to the PR branch automatically
+#   - conflicts    -> label the PR `merge-conflict` and comment with the
+#                     conflicting files so the author can fix them
+#   - resolved     -> remove the label once the PR merges cleanly again
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: sync-prs
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge main into open PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LABEL: merge-conflict
+          # On pull_request events only handle that PR; otherwise handle all.
+          ONLY_PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          gh label create "$LABEL" --color B60205 \
+            --description "This PR has merge conflicts with main" --force >/dev/null
+
+          if [ -n "$ONLY_PR" ]; then
+            prs=$(gh pr view "$ONLY_PR" --json number,headRefName,isCrossRepository,labels \
+                  --jq '[.]')
+          else
+            prs=$(gh pr list --state open --base main --limit 100 \
+                  --json number,headRefName,isCrossRepository,labels)
+          fi
+
+          git fetch origin main
+
+          echo "$prs" | jq -c '.[]' | while read -r pr; do
+            num=$(jq -r .number <<<"$pr")
+            branch=$(jq -r .headRefName <<<"$pr")
+            fork=$(jq -r .isCrossRepository <<<"$pr")
+            labeled=$(jq -r --arg l "$LABEL" '[.labels[].name] | index($l) != null' <<<"$pr")
+
+            echo "::group::PR #$num ($branch)"
+
+            if [ "$fork" = "true" ]; then
+              echo "Skipping: PR comes from a fork, can't push to it."
+              echo "::endgroup::"; continue
+            fi
+
+            git fetch origin "$branch" && git checkout -B "$branch" "origin/$branch" || {
+              echo "::warning::Could not check out $branch"; echo "::endgroup::"; continue; }
+
+            if git merge-base --is-ancestor origin/main HEAD; then
+              echo "Already up to date with main."
+              [ "$labeled" = "true" ] && gh pr edit "$num" --remove-label "$LABEL"
+            elif git merge --no-edit origin/main -m "Merge main into $branch (auto-sync)"; then
+              if git push origin "HEAD:$branch"; then
+                echo "Merged main cleanly and pushed."
+              else
+                echo "::warning::Push to $branch failed (branch probably moved); will retry next run."
+              fi
+              [ "$labeled" = "true" ] && gh pr edit "$num" --remove-label "$LABEL"
+            else
+              files=$(git diff --name-only --diff-filter=U | sed 's/^/- `/; s/$/`/')
+              git merge --abort
+              echo "Conflicts detected:"; echo "$files"
+              if [ "$labeled" != "true" ]; then
+                gh pr edit "$num" --add-label "$LABEL"
+                gh pr comment "$num" --body "$(cat <<MSG
+          :warning: **This PR has merge conflicts with \`main\`** and couldn't be updated automatically.
+
+          Conflicting files:
+          $files
+
+          To fix locally:
+          \`\`\`bash
+          git checkout $branch
+          git pull origin main   # resolve the conflicts, then:
+          git add . && git commit && git push
+          \`\`\`
+          The \`$LABEL\` label will be removed automatically once the conflicts are resolved.
+          MSG
+                )"
+              fi
+            fi
+            echo "::endgroup::"
+          done
