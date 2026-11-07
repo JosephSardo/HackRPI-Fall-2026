@@ -11,7 +11,7 @@ public class Street
 
     public double Distance { get; set; }
 
-    public string ImagePath { get; set; }
+    public string? ImagePath { get; set; }
 
     public Street(int id, double d, Intersection s, Intersection e)
     {
