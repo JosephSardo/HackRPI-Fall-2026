@@ -30,6 +30,9 @@ public partial class PlayingView : UserControl
                 new System.Uri("avares://PathFinder/Assets/road-segment.png")
             )
         );
+
+        Loaded += (_, _) => DrawMap();
+        MapCanvas.SizeChanged += (_, _) => DrawMap();
     }
 
     private Avalonia.Point MapToScreen(
@@ -75,6 +78,16 @@ public partial class PlayingView : UserControl
 
     private void DrawMap()
     {
+        MapCanvas.Children.Clear();
+
+        if(MapCanvas.Bounds.Width <= 0 || MapCanvas.Bounds.Height <= 0)
+        {
+            return;
+        }
+
+        Console.WriteLine($"DataContext: {DataContext?.GetType().Name}");
+        Console.WriteLine($"Canvas size: {MapCanvas.Bounds.Width} x {MapCanvas.Bounds.Height}");
+        
         if (DataContext is not PlayingViewModel vm)
             return;
 
