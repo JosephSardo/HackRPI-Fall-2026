@@ -51,7 +51,7 @@ public partial class LobbyViewModel : ViewModelBase, IDisposable
         }
         catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
         {
-            Fail($"Port {Protocol.DefaultPort} is already in use. Is another game (or NetCheck) already hosting on this laptop?");
+            Fail($"Port {Protocol.DefaultPort} is already in use. Is another game already hosting on this laptop?");
         }
         catch (NetworkException ex)
         {
