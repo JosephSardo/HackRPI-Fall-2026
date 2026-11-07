@@ -45,6 +45,9 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     private bool _matchStarted;
 
     [ObservableProperty] private string? _hostAddresses;
+    /// <summary>Host only: which map this game is on, and a warning if it fell back to the test map.</summary>
+    [ObservableProperty] private string? _mapInfo;
+    [ObservableProperty] private string? _mapWarning;
     /// <summary>Short code for the host's address (e.g. "K3QZ-7TB"); null if it has no IPv4 address.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowAddressesDirectly))]
@@ -70,12 +73,16 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     {
         if (!ValidateName()) return;
         IsBusy = true;
-        Status = "Starting game...";
+        Status = "Loading map...";
         try
         {
-            _host = new GameHost();
+            var (map, mapWarning) = await HostMapLoader.LoadAsync();
+            Status = "Starting game...";
+            _host = new GameHost(map: map);
             await ConnectAsync("127.0.0.1", _host.Port, _host.HostKey);
             IsHost = true;
+            MapInfo = $"Map: {map.Name} ({map.Graph.VertexCount} intersections, {map.Graph.EdgeCount} streets)";
+            MapWarning = mapWarning;
             var addresses = NetInfo.LanAddresses();
             GameCode = addresses.Select(Network.GameCode.FromAddress).FirstOrDefault(code => code is not null);
             HostAddresses = addresses.Count == 0
@@ -248,6 +255,8 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         MatchStarted = false;
         HostAddresses = null;
         GameCode = null;
+        MapInfo = null;
+        MapWarning = null;
         if (_screen is not null) Show(null); // back to the lobby screen
     }
 

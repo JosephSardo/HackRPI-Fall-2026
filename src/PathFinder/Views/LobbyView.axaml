@@ -53,6 +53,9 @@
             <!-- No IPv4 game code: the IPs are the only way in, so show them plainly -->
             <SelectableTextBlock Text="{Binding HostAddresses}" TextWrapping="Wrap" Opacity="0.7"
                                  IsVisible="{Binding ShowAddressesDirectly}"/>
+            <TextBlock Text="{Binding MapInfo}" IsVisible="{Binding IsHost}" Opacity="0.7"/>
+            <TextBlock Text="{Binding MapWarning}" TextWrapping="Wrap" Foreground="#E0A030"
+                       IsVisible="{Binding MapWarning, Converter={x:Static ObjectConverters.IsNotNull}}"/>
 
             <TextBlock Text="Players" FontWeight="SemiBold" Margin="0,8,0,0"/>
             <ItemsControl ItemsSource="{Binding Players}">
