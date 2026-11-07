@@ -20,6 +20,12 @@
         <TextBlock Text="{Binding TimeLeft}" FontSize="20"/>
         <TextBlock Text="{Binding Submissions}" Opacity="0.7"/>
         <TextBlock Text="The map goes here. For now, submit a made-up path:" Margin="0,12,0,0"/>
+
+        <Canvas x:Name="MapCanvas"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                Background="#1d1945"/>
+
         <StackPanel Orientation="Horizontal" Spacing="8">
             <Button Content="Submit direct path" Command="{Binding SubmitDirectCommand}"/>
             <Button Content="Submit longer path" Command="{Binding SubmitDetourCommand}"/>
