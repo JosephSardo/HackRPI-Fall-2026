@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PathFinder.Network;
+using PathFinder.Services;
 
 namespace PathFinder.ViewModels;
 
@@ -66,11 +67,12 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     readonly Action<bool> _done; // true if time ran out before submitting
     bool _finished;
 
-    public PlayingViewModel(GameClient client, RoundStartMessage round, RoundClock clock, string submissions, Action<bool> done,
-                            string? hostWarning = null)
+    public PlayingViewModel(GameClient client, GameService game, RoundStartMessage round, RoundClock clock,
+                            string submissions, Action<bool> done, string? hostWarning = null)
         : base(clock, submissions)
     {
         _client = client;
+        Game = game;
         _round = round;
         _done = done;
         HostWarning = hostWarning;
@@ -78,6 +80,21 @@ public partial class PlayingViewModel : RoundInProgressViewModel
 
     /// <summary>Host only: why this match is on the test map (e.g. the real map took too long). Null otherwise.</summary>
     public string? HostWarning { get; }
+
+    /// <summary>
+    /// This player's game for the round: the map to draw (<c>Game.CityMap</c>), start/end already set,
+    /// and the route being built (<c>Game.AddStreetToRoute</c> / <c>RemoveStreetFromRoute</c>).
+    /// The view reads it from its DataContext.
+    /// </summary>
+    public GameService Game { get; }
+
+    /// <summary>Call after changing the route so the Submit button updates.</summary>
+    public void RouteChanged() => OnPropertyChanged(nameof(CanSubmitRoute));
+
+    public bool CanSubmitRoute => Game.PathIsComplete() && !_finished;
+
+    /// <summary>Submit the route built on the map (the real Submit button for the map UI).</summary>
+    [RelayCommand] private Task SubmitRouteAsync() => CanSubmitRoute ? SubmitAsync(Game.GetPlayerPath()) : Task.CompletedTask;
 
     public string Title => $"Round {_round.RoundNumber} of {_round.TotalRounds}";
     public string Route => $"Get from intersection {_round.StartId} to intersection {_round.EndId}";

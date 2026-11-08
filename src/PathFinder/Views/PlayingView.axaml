@@ -14,18 +14,38 @@
     </UserControl.Styles>
     
     <!-- Placeholder layout: restyle freely; bindings are the contract. -->
-    <StackPanel Width="460" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="Bold"/>
-        <TextBlock Text="{Binding Route}"/>
-        <TextBlock Text="{Binding MapInfo}" Opacity="0.7"/>
-        <TextBlock Text="{Binding HostWarning}" TextWrapping="Wrap" Foreground="#E0A030"
-                   IsVisible="{Binding HostWarning, Converter={x:Static ObjectConverters.IsNotNull}}"/>
-        <TextBlock Text="{Binding TimeLeft}" FontSize="20"/>
-        <TextBlock Text="{Binding Submissions}" Opacity="0.7"/>
-        <TextBlock Text="The map goes here. For now, submit a real route on the map with a button:" Margin="0,12,0,0"/>
-        <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Content="Submit best route" Command="{Binding SubmitBestCommand}"/>
-            <Button Content="Submit a longer route" Command="{Binding SubmitLongerCommand}"/>
+    <Grid Margin="16" RowDefinitions="Auto,*,Auto">
+        <!-- Header information -->
+        <StackPanel Grid.Row="0" Spacing="8">
+            <TextBlock Text="{Binding Title}"
+                    FontSize="24"
+                    FontWeight="Bold"/>
+
+            <TextBlock Text="{Binding Route}"/>
+            <TextBlock Text="{Binding MapInfo}" Opacity="0.7"/>
+            <TextBlock Text="{Binding HostWarning}" TextWrapping="Wrap" Foreground="#E0A030"
+                       IsVisible="{Binding HostWarning, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+            <TextBlock Text="{Binding TimeLeft}" FontSize="20"/>
+            <TextBlock Text="{Binding Submissions}" Opacity="0.7"/>
         </StackPanel>
-    </StackPanel>
+
+        <!-- Map -->
+        <Canvas x:Name="MapCanvas"
+                Grid.Row="1"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                Background="#1d1945"/>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    Spacing="8">
+            <Button Content="Submit best route"
+                    Command="{Binding SubmitBestCommand}"/>
+
+            <Button Content="Submit a longer route"
+                    Command="{Binding SubmitLongerCommand}"/>
+        </StackPanel>
+
+    </Grid>
 </UserControl>
