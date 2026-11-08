@@ -127,6 +127,9 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     /// <summary>Why the last click did nothing (or what to do next); null when there's nothing to say.</summary>
     [ObservableProperty] private string? _routeHint;
 
+    /// <summary>The street under the mouse, e.g. "Congress Street · 120 m"; null when not over a street.</summary>
+    [ObservableProperty] private string? _hoverInfo;
+
     /// <summary>
     /// A street was clicked: clicking your last street again takes it back; clicking a street that
     /// touches the end of your route extends it; anything else explains why not.

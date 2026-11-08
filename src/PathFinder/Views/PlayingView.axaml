@@ -57,6 +57,8 @@
                          Foreground="{Binding TimerBrush}" Background="#33FFFFFF" CornerRadius="7"/>
             <TextBlock Text="{Binding Submissions}" Opacity="0.7"/>
             <TextBlock Text="{Binding RouteSummary}"/>
+            <TextBlock Text="{Binding HoverInfo}" Opacity="0.8" FontStyle="Italic"
+                       IsVisible="{Binding HoverInfo, Converter={x:Static ObjectConverters.IsNotNull}}"/>
             <TextBlock Text="{Binding RouteHint}" Foreground="#E0A030" TextWrapping="Wrap"
                        IsVisible="{Binding RouteHint, Converter={x:Static ObjectConverters.IsNotNull}}"/>
         </StackPanel>

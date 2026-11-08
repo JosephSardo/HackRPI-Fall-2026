@@ -44,7 +44,11 @@ public partial class PlayingView : UserControl
         // Street selection: click a street to extend the route (or click the last one to undo).
         MapCanvas.PointerPressed += OnMapPointerPressed;
         MapCanvas.PointerMoved += OnMapPointerMoved;
-        MapCanvas.PointerExited += (_, _) => SetHovered(null);
+        MapCanvas.PointerExited += (_, _) =>
+        {
+            if (_vm is not null) _vm.HoverInfo = null;
+            SetHovered(null);
+        };
     }
 
     private Avalonia.Point MapToScreen(
@@ -268,6 +272,7 @@ public partial class PlayingView : UserControl
     {
         if (_vm is null || !_hasLayout) return;
         var street = StreetAt(e.GetPosition(MapCanvas));
+        _vm.HoverInfo = street is null ? null : $"{street.Name ?? "Unnamed street"} · {street.Distance:0} m";
         SetHovered(street is not null && _vm.CanClick(street) ? street : null);
     }
 
