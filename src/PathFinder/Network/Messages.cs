@@ -13,7 +13,7 @@ public static class Protocol
 
     // Match settings the host player picks in the lobby. The host clamps whatever it receives to these limits.
     public const int DefaultRounds = 3, MinRounds = 1, MaxRounds = 10;
-    public const int DefaultRoundSeconds = 90, MinRoundSeconds = 15, MaxRoundSeconds = 600;
+    public const int DefaultRoundSeconds = 45, MinRoundSeconds = 15, MaxRoundSeconds = 600;
 }
 
 public sealed record PlayerInfo(string Id, string Name, bool IsHost);
