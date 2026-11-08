@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PathFinder.ViewModels"
              xmlns:sys="using:System"
+             xmlns:views="using:PathFinder.Views"
              x:Class="PathFinder.Views.ResultsView"
              x:DataType="vm:ResultsViewModel"
              Background="#1d1945"
@@ -14,16 +15,30 @@
     </UserControl.Styles>
     
     <!-- Placeholder layout: restyle freely; bindings are the contract. -->
-    <StackPanel Width="460" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="Bold"/>
-        <ItemsControl ItemsSource="{Binding Rows}">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="sys:String">
-                    <TextBlock Text="{Binding}" Margin="8,2"/>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-        <TextBlock Text="{Binding BestRoute}" Opacity="0.7" TextWrapping="Wrap"/>
-        <TextBlock Text="{Binding TimeLeft}" FontSize="18" Margin="0,8,0,0"/>
-    </StackPanel>
+    <Grid Margin="16" ColumnDefinitions="*,Auto">
+        <!-- Map with everyone's route and the best route -->
+        <views:RouteMap Grid.Column="0" Map="{Binding Map}" Routes="{Binding MapRoutes}" MinHeight="300"/>
+
+        <!-- Results, with each row's colour matching that player's line -->
+        <StackPanel Grid.Column="1" Width="360" Spacing="12" Margin="16,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="Bold"/>
+            <ItemsControl ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ResultRow">
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,3">
+                            <Border Width="14" Height="14" CornerRadius="7" VerticalAlignment="Center"
+                                    Background="{Binding Color}"/>
+                            <TextBlock Text="{Binding Text}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Border Width="14" Height="14" CornerRadius="7" VerticalAlignment="Center"
+                        Background="{Binding BestRouteSwatch}"/>
+                <TextBlock Text="{Binding BestRoute}" Opacity="0.8" TextWrapping="Wrap"/>
+            </StackPanel>
+            <TextBlock Text="{Binding TimeLeft}" FontSize="18" Margin="0,8,0,0"/>
+        </StackPanel>
+    </Grid>
 </UserControl>

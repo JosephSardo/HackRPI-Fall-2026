@@ -20,29 +20,30 @@ public static class HostMapLoader
 {
     // Used when the host leaves the lobby's Location empty: RPI campus.
     public const double DefaultLatitude = 42.7284, DefaultLongitude = -73.6918;
-    public const double RadiusMeters = 300;
+    public const double DefaultRadiusMeters = 300;
     // Long enough for the Overpass client's own retries (waits of 1, 2, 4, 8 s) to finish.
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(45);
 
     /// <summary>
-    /// The map around a location. <paramref name="build"/> replaces the real downloader (for testing);
+    /// The map within <paramref name="radiusMeters"/> of a location. <paramref name="build"/> replaces the real downloader (for testing);
     /// only real downloads are cached.
     /// </summary>
     public static async Task<HostMap> LoadAsync(
-        double latitude, double longitude, Func<CancellationToken, Task<CityMap>>? build = null)
+        double latitude, double longitude, double radiusMeters = DefaultRadiusMeters,
+        Func<CancellationToken, Task<CityMap>>? build = null)
     {
         var useCache = build is null;
-        if (useCache && MapCache.TryLoad(latitude, longitude, RadiusMeters) is { } saved && IsPlayable(saved))
+        if (useCache && MapCache.TryLoad(latitude, longitude, radiusMeters) is { } saved && IsPlayable(saved))
             return new HostMap(saved, null, FromCache: true);
 
-        build ??= ct => MapBuilder.BuildAsync(latitude, longitude, RadiusMeters, ct);
+        build ??= ct => MapBuilder.BuildAsync(latitude, longitude, radiusMeters, ct);
         var elapsed = Stopwatch.StartNew();
         try
         {
             using var timeout = new CancellationTokenSource(Timeout);
             var map = await build(timeout.Token).WaitAsync(timeout.Token);
             new CityMapRoundRules(map).PickStartAndEnd(1); // throws if no round could be played on it
-            if (useCache) MapCache.Save(latitude, longitude, RadiusMeters, map);
+            if (useCache) MapCache.Save(latitude, longitude, radiusMeters, map);
             return new HostMap(map, null, FromCache: false);
         }
         catch (Exception ex)
