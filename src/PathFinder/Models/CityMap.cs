@@ -9,6 +9,9 @@ public class CityMap
     public int StartId { get; set; }
     public int EndId { get; set; }
 
+    /// <summary>Credit to show wherever the map is drawn (e.g. "© OpenStreetMap contributors"); null for made-up maps.</summary>
+    public string? Attribution { get; set; }
+
     public UndirectedGraph<Intersection, TaggedUndirectedEdge<Intersection, Street>> Graph { get; set; }
     private Dictionary<int, Intersection> Intersections;
 
