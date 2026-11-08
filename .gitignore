@@ -28,3 +28,5 @@ desktop.ini
 
 # Claude Code agent worktrees (full repo copies)
 .claude/worktrees/
+# Personal Claude Code settings (sandbox, permissions)
+.claude/settings.local.json

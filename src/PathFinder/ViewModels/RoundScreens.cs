@@ -21,8 +21,12 @@ public sealed class RoundClock(TimeSpan duration)
 {
     readonly Stopwatch _elapsed = Stopwatch.StartNew();
 
+    public TimeSpan Duration => duration;
     public TimeSpan Remaining => duration > _elapsed.Elapsed ? duration - _elapsed.Elapsed : TimeSpan.Zero;
     public bool IsUp => Remaining == TimeSpan.Zero;
+
+    /// <summary>1 at the start of the round, 0 when time is up.</summary>
+    public double FractionLeft => duration <= TimeSpan.Zero ? 0 : Remaining / duration;
     public string Text => $"{Math.Ceiling(Remaining.TotalSeconds):0}s left";
 }
 
@@ -78,6 +82,7 @@ public partial class PlayingViewModel : RoundInProgressViewModel
         _round = round;
         _done = done;
         HostWarning = hostWarning;
+        UpdatePressure();
     }
 
     /// <summary>Host only: why this match is on the test map (e.g. the real map took too long). Null otherwise.</summary>
@@ -210,7 +215,34 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     protected override void Tick()
     {
         base.Tick();
+        UpdatePressure();
         if (Clock.IsUp && !_client.HasSubmitted) Finish(timedOut: true);
+    }
+
+    // ---- the big, increasingly menacing countdown
+
+    static readonly IBrush CalmBrush = Brush.Parse("#D3EAFF");
+    static readonly IBrush WarningBrush = Brush.Parse("#FFB300");
+    static readonly IBrush CriticalBrush = Brush.Parse("#FF3B30");
+
+    /// <summary>Whole seconds left (rounded up), shown huge.</summary>
+    [ObservableProperty] private int _secondsLeft;
+
+    /// <summary>0-100, for the draining bar.</summary>
+    [ObservableProperty] private double _timePercent = 100;
+
+    /// <summary>Calm, then amber from half time, then red for the last 10 seconds.</summary>
+    [ObservableProperty] private IBrush _timerBrush = CalmBrush;
+
+    /// <summary>Last 10 seconds: the number pulses.</summary>
+    [ObservableProperty] private bool _isCritical;
+
+    void UpdatePressure()
+    {
+        SecondsLeft = (int)Math.Ceiling(Clock.Remaining.TotalSeconds);
+        TimePercent = Clock.FractionLeft * 100;
+        IsCritical = SecondsLeft <= 10 && !Clock.IsUp;
+        TimerBrush = IsCritical ? CriticalBrush : Clock.FractionLeft <= 0.5 ? WarningBrush : CalmBrush;
     }
 
     void Finish(bool timedOut)
