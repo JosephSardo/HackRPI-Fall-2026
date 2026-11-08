@@ -101,8 +101,8 @@ public sealed class GameClient : IDisposable
     }
 
     /// <summary>Host player only: start the match. The host ignores this from anyone else.</summary>
-    public Task StartMatchAsync(int rounds, int roundSeconds, GameMode mode = GameMode.Competitive) =>
-        SendAsync(new StartMatchMessage(rounds, roundSeconds, mode));
+    public Task StartMatchAsync(int rounds, int roundSeconds, GameMode mode = GameMode.Competitive, bool practice = false) =>
+        SendAsync(new StartMatchMessage(rounds, roundSeconds, mode, practice));
 
     /// <summary>Cloud Navigator, in the lobby: ask to be the navigator or the driver.</summary>
     public Task ChooseRoleAsync(PlayerRole role) => SendAsync(new ChooseRoleMessage(role));

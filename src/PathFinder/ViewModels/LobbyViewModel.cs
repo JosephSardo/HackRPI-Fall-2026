@@ -82,9 +82,33 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
 
     public bool IsInMenu => !IsInLobby;
 
-    /// <summary>Host's Start button: the host refuses to start with fewer than <see cref="Protocol.MinPlayers"/> players.</summary>
+    /// <summary>Host's Start button: the host refuses to start with fewer than <see cref="Protocol.MinPlayersFor"/> players.</summary>
     public bool CanStartMatch =>
-        !MatchStarted && !IsLoadingMap && LocationError is null && Players.Count >= Protocol.MinPlayers;
+        !MatchStarted && !IsLoadingMap && LocationError is null && Players.Count >= MinPlayersNeeded;
+
+    /// <summary>Host only: let the host start a competitive match alone (for trying it out or demos). Off by default.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartMatch), nameof(NeedsMorePlayers))]
+    private bool _practiceMode;
+
+    int MinPlayersNeeded => Protocol.MinPlayersFor(NavigatorMode ? GameMode.Navigator : GameMode.Competitive, PracticeMode);
+
+    // Practice only allows solo competitive matches, so switching mode can change whether Start is allowed.
+    partial void OnNavigatorModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanStartMatch));
+        OnPropertyChanged(nameof(NeedsMorePlayers));
+    }
+
+    /// <summary>One-click demo spots for Location; each has a bundled map, so it loads instantly even offline.</summary>
+    public IReadOnlyList<DemoMap> Presets => DemoMaps.All;
+
+    [RelayCommand]
+    private void UsePreset(DemoMap preset)
+    {
+        Location = new GeoPoint(preset.Latitude, preset.Longitude).ToCoordinateString();
+        RadiusMeters = preset.RadiusMeters;
+    }
 
     /// <summary>Host: true while the map for the next match is being loaded (after clicking Start).</summary>
     [ObservableProperty]
@@ -97,7 +121,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StartButtonText))]
     private int _loadingSeconds;
-    public bool NeedsMorePlayers => IsHost && Players.Count < Protocol.MinPlayers;
+    public bool NeedsMorePlayers => IsHost && Players.Count < MinPlayersNeeded;
 
     public ObservableCollection<string> Players { get; } = [];
 
@@ -202,7 +226,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
                       $"around {at.ToCoordinateString()}{(result.FromCache ? " (saved copy)" : "")}";
             MapWarning = result.Warning;
             await _client.StartMatchAsync((int)(Rounds ?? Protocol.DefaultRounds), (int)(RoundSeconds ?? Protocol.DefaultRoundSeconds),
-                                          NavigatorMode ? GameMode.Navigator : GameMode.Competitive);
+                                          NavigatorMode ? GameMode.Navigator : GameMode.Competitive, PracticeMode);
         }
         catch (Exception ex) { Status = $"Couldn't start the match: {ex.Message}"; }
         finally

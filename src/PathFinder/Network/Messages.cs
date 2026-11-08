@@ -6,9 +6,15 @@ namespace PathFinder.Network;
 public static class Protocol
 {
     /// <summary>Bump when messages change, so mismatched builds are turned away instead of misbehaving.</summary>
-    public const int Version = 6;
+    public const int Version = 7;
     public const int DefaultPort = 5050;
     public const int MinPlayers = 2;
+    /// <summary>
+    /// Players needed to start: <see cref="MinPlayers"/>, or 1 for a practice (solo) competitive match.
+    /// Cloud Navigator always needs two (a navigator and a driver).
+    /// </summary>
+    public static int MinPlayersFor(GameMode mode, bool practice) =>
+        practice && mode == GameMode.Competitive ? 1 : MinPlayers;
     public const int MaxPlayers = 8;
 
     // Match settings the host player picks in the lobby. The host clamps whatever it receives to these limits.
@@ -52,8 +58,11 @@ public abstract record NetMessage;
 // Client -> host
 /// <summary>First message on every connection. HostKey is only set by the host's own client.</summary>
 public sealed record JoinMessage(string Name, int ProtocolVersion, string? HostKey = null) : NetMessage;
-/// <summary>Host player starts the match with these settings (the host clamps them to the limits in <see cref="Protocol"/>).</summary>
-public sealed record StartMatchMessage(int Rounds, int RoundSeconds, GameMode Mode = GameMode.Competitive) : NetMessage;
+/// <summary>
+/// Host player starts the match with these settings (the host clamps them to the limits in <see cref="Protocol"/>).
+/// Practice lets the host start alone (see <see cref="Protocol.MinPlayersFor"/>).
+/// </summary>
+public sealed record StartMatchMessage(int Rounds, int RoundSeconds, GameMode Mode = GameMode.Competitive, bool Practice = false) : NetMessage;
 public sealed record PingMessage(long Seq) : NetMessage;
 /// <summary>The player's one submission for the round: node IDs from start to end.</summary>
 public sealed record SubmitPathMessage(int RoundNumber, List<int> NodeIds) : NetMessage;
