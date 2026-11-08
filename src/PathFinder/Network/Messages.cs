@@ -6,7 +6,7 @@ namespace PathFinder.Network;
 public static class Protocol
 {
     /// <summary>Bump when messages change, so mismatched builds are turned away instead of misbehaving.</summary>
-    public const int Version = 5;
+    public const int Version = 6;
     public const int DefaultPort = 5050;
     public const int MinPlayers = 2;
     public const int MaxPlayers = 8;
@@ -16,7 +16,8 @@ public static class Protocol
     public const int DefaultRoundSeconds = 90, MinRoundSeconds = 15, MaxRoundSeconds = 600;
 }
 
-public sealed record PlayerInfo(string Id, string Name, bool IsHost);
+/// <summary>A player in the lobby. Role only matters in Cloud Navigator mode (see NavigatorMessages.cs).</summary>
+public sealed record PlayerInfo(string Id, string Name, bool IsHost, PlayerRole Role = PlayerRole.None);
 
 /// <summary>One player's outcome for a round. NodeIds is empty and Score is 0 if they didn't submit in time.</summary>
 public sealed record RoundResult(string PlayerId, string Name, bool Submitted, List<int> NodeIds, double Score, int Rank);
@@ -42,13 +43,17 @@ public sealed record PlayerTotal(string PlayerId, string Name, double TotalScore
 [JsonDerivedType(typeof(PlayerSubmittedMessage), "PlayerSubmitted")]
 [JsonDerivedType(typeof(RoundResultsMessage), "RoundResults")]
 [JsonDerivedType(typeof(MatchOverMessage), "MatchOver")]
+// Cloud Navigator mode (defined in NavigatorMessages.cs)
+[JsonDerivedType(typeof(ChooseRoleMessage), "ChooseRole")]
+[JsonDerivedType(typeof(DriveToMessage), "DriveTo")]
+[JsonDerivedType(typeof(DriverMovedMessage), "DriverMoved")]
 public abstract record NetMessage;
 
 // Client -> host
 /// <summary>First message on every connection. HostKey is only set by the host's own client.</summary>
 public sealed record JoinMessage(string Name, int ProtocolVersion, string? HostKey = null) : NetMessage;
 /// <summary>Host player starts the match with these settings (the host clamps them to the limits in <see cref="Protocol"/>).</summary>
-public sealed record StartMatchMessage(int Rounds, int RoundSeconds) : NetMessage;
+public sealed record StartMatchMessage(int Rounds, int RoundSeconds, GameMode Mode = GameMode.Competitive) : NetMessage;
 public sealed record PingMessage(long Seq) : NetMessage;
 /// <summary>The player's one submission for the round: node IDs from start to end.</summary>
 public sealed record SubmitPathMessage(int RoundNumber, List<int> NodeIds) : NetMessage;
@@ -62,7 +67,7 @@ public sealed record PongMessage(long Seq) : NetMessage;
 /// Sent once before round 1: the host's canonical map, so every player plays on identical IDs.
 /// Each round then only sends its start/end.
 /// </summary>
-public sealed record MatchStartMessage(MapData Map, int TotalRounds) : NetMessage;
+public sealed record MatchStartMessage(MapData Map, int TotalRounds, GameMode Mode = GameMode.Competitive) : NetMessage;
 /// <summary>
 /// A round begins now. Clients count down DurationSeconds from when this arrives
 /// (laptop clocks don't agree, so no wall-clock times are sent).
