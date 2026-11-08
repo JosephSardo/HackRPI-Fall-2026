@@ -101,6 +101,17 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
 
     public ObservableCollection<string> Players { get; } = [];
 
+    // ---- Cloud Navigator (co-op) mode: see NavigatorScreens.cs. Placeholder lobby controls.
+
+    /// <summary>Host only: start the next match in Cloud Navigator mode instead of the competitive mode.</summary>
+    [ObservableProperty] private bool _navigatorMode;
+    /// <summary>Who would navigate and drive in a Cloud Navigator match (shown to everyone).</summary>
+    [ObservableProperty] private string? _navigatorTeam;
+    GameMode _matchMode;
+
+    [RelayCommand] private Task BeNavigatorAsync() => _client?.ChooseRoleAsync(PlayerRole.Navigator) ?? Task.CompletedTask;
+    [RelayCommand] private Task BeDriverAsync() => _client?.ChooseRoleAsync(PlayerRole.Driver) ?? Task.CompletedTask;
+
     [RelayCommand]
     private async Task HostAsync()
     {
@@ -190,7 +201,8 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
             MapInfo = $"Map: {map.Name} ({map.Graph.VertexCount} intersections, {map.Graph.EdgeCount} streets) " +
                       $"around {at.ToCoordinateString()}{(result.FromCache ? " (saved copy)" : "")}";
             MapWarning = result.Warning;
-            await _client.StartMatchAsync((int)(Rounds ?? Protocol.DefaultRounds), (int)(RoundSeconds ?? Protocol.DefaultRoundSeconds));
+            await _client.StartMatchAsync((int)(Rounds ?? Protocol.DefaultRounds), (int)(RoundSeconds ?? Protocol.DefaultRoundSeconds),
+                                          NavigatorMode ? GameMode.Navigator : GameMode.Competitive);
         }
         catch (Exception ex) { Status = $"Couldn't start the match: {ex.Message}"; }
         finally
@@ -235,6 +247,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         client.PlayerSubmitted += OnPlayerSubmitted;
         client.RoundResultsReady += OnRoundResults;
         client.MatchOver += OnMatchOver;
+        client.DriverMoved += OnDriverMoved;
         client.Disconnected += OnDisconnected;
         _client = client;
         await client.ConnectAsync(address, port, PlayerName.Trim(), hostKey);
@@ -252,6 +265,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
             var tags = (p.IsHost ? " (host)" : "") + (p.Id == _client.PlayerId ? " (you)" : "");
             Players.Add(p.Name + tags);
         }
+        NavigatorTeam = NavigatorScreens.TeamPreview(players, _client.PlayerId);
         OnPropertyChanged(nameof(CanStartMatch));
         OnPropertyChanged(nameof(NeedsMorePlayers));
     }
@@ -261,8 +275,9 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     /// <summary>One per match, on this player's copy of the host's map. Reset each round with the round's start/end.</summary>
     GameService? _game;
 
-    void OnMatchStarted(MatchStartMessage _)
+    void OnMatchStarted(MatchStartMessage start)
     {
+        _matchMode = start.Mode;
         if (_client?.Map is { } map) _game = new GameService(map);
     }
 
@@ -278,6 +293,11 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         _clock = new RoundClock(TimeSpan.FromSeconds(start.DurationSeconds));
         _submissions = "";
         var clock = _clock;
+        if (_matchMode == GameMode.Navigator)
+        {
+            Show(NavigatorScreens.ForRound(_client, map, start, clock));
+            return;
+        }
         Show(new PlayingViewModel(_client, _game, start, clock, _submissions,
             done: timedOut => Show(new WaitingViewModel(clock, _submissions, timedOut)),
             hostWarning: IsHost ? MapWarning : null));
@@ -307,6 +327,8 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         showScreen(screen);
     }
 
+    void OnDriverMoved(DriverMovedMessage moved) => (_screen as IFollowsDriver)?.OnDriverMoved(moved);
+
     void OnDisconnected(string reason) => Fail(reason);
 
     bool ValidateName()
@@ -332,6 +354,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
             _client.PlayerSubmitted -= OnPlayerSubmitted;
             _client.RoundResultsReady -= OnRoundResults;
             _client.MatchOver -= OnMatchOver;
+            _client.DriverMoved -= OnDriverMoved;
             _client.Disconnected -= OnDisconnected;
             _client.Dispose();
             _client = null;
@@ -347,6 +370,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         GameCode = null;
         MapInfo = null;
         MapWarning = null;
+        NavigatorTeam = null;
         IsLoadingMap = false;
         if (_screen is not null) Show(null); // back to the lobby screen
     }

@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PathFinder.ViewModels"
+             xmlns:views="using:PathFinder.Views"
+             x:Class="PathFinder.Views.NavigatorView"
+             x:DataType="vm:NavigatorViewModel"
+             Background="#1d1945"
+             TextElement.Foreground="#d3eaff">
+
+    <!-- Cloud Navigator, the view from the clouds. Placeholder layout: restyle freely; bindings are the contract.
+         Read-only on purpose: the navigator can't click anything, they talk. -->
+    <Grid Margin="16" ColumnDefinitions="*,Auto">
+        <!-- Whole map: the driver's trail (yellow), start (green ring), destination (red ring), driver (blue dot) -->
+        <views:RouteMap Grid.Column="0" Map="{Binding Map}" Routes="{Binding Routes}" Markers="{Binding Markers}" MinHeight="300"/>
+
+        <StackPanel Grid.Column="1" Width="320" Spacing="12" Margin="16,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Title}" FontSize="22" FontWeight="Bold" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding TimeLeft}" FontSize="18"/>
+            <TextBlock Text="{Binding Instructions}" TextWrapping="Wrap" Opacity="0.8"/>
+            <TextBlock Text="{Binding DriverStatus}" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Distance}" Opacity="0.8"/>
+        </StackPanel>
+    </Grid>
+</UserControl>
