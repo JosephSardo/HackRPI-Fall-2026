@@ -201,7 +201,8 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     [RelayCommand] private Task SubmitRouteAsync() => CanSubmitRoute ? SubmitAsync(Game.GetPlayerPath()) : Task.CompletedTask;
 
     public string Title => $"Round {_round.RoundNumber} of {_round.TotalRounds}";
-    public string Route => $"Get from intersection {_round.StartId} to intersection {_round.EndId}";
+    public string Route =>
+        $"Get from {MapText.Intersection(Game.CityMap, _round.StartId)} to {MapText.Intersection(Game.CityMap, _round.EndId)}";
     public string MapInfo => _client.Map is { } map
         ? $"{map.Name}: {map.Graph.VertexCount} intersections, {map.Graph.EdgeCount} streets"
         : "No map received";
