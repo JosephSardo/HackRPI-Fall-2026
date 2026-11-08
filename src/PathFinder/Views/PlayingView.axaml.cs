@@ -52,8 +52,8 @@ public partial class PlayingView : UserControl
         double scale,
         double padding)
     {
-        double x = padding + (intersection.X - minX) * scale;
-        double y = MapCanvas.Bounds.Height - padding - (intersection.Y - minY) * scale;
+        double x = padding + _centerOffsetX + (intersection.X - minX) * scale;
+        double y = MapCanvas.Bounds.Height - padding - _centerOffsetY - (intersection.Y - minY) * scale;
 
         return new Avalonia.Point(x, y);
     }
@@ -184,6 +184,10 @@ public partial class PlayingView : UserControl
 
         double scale = Math.Min(scaleX, scaleY);
 
+        // Center the map in whichever direction has room left over after scaling to fit.
+        _centerOffsetX = (availableWidth - rangeX * scale) / 2;
+        _centerOffsetY = (availableHeight - rangeY * scale) / 2;
+
         // Remembered for street selection, so clicks can be matched to streets on screen.
         _minX = minX;
         _minY = minY;
@@ -221,7 +225,7 @@ public partial class PlayingView : UserControl
     /// <summary>How close (in pixels) a click must be to a street to select it.</summary>
     private const double HitTolerance = 18;
 
-    private double _minX, _minY, _scale, _padding;
+    private double _minX, _minY, _scale, _padding, _centerOffsetX, _centerOffsetY;
     private bool _hasLayout;
     private Street? _hovered;
     private PlayingViewModel? _vm;
