@@ -45,6 +45,17 @@
                 VerticalAlignment="Stretch"
                 Background="Transparent"/>
 
+        <!-- Map data credit (required by the OpenStreetMap licence); hidden for the test grid -->
+        <TextBlock Grid.Row="1"
+                   Text="{Binding MapAttribution}"
+                   IsVisible="{Binding MapAttribution, Converter={x:Static ObjectConverters.IsNotNull}}"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Bottom"
+                   Margin="4"
+                   FontSize="11"
+                   Opacity="0.6"
+                   IsHitTestVisible="False"/>
+
         <!-- Buttons -->
         <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
@@ -58,13 +69,6 @@
 
             <Button Content="Clear"
                     Command="{Binding ClearRouteCommand}"/>
-
-            <!-- Placeholders from before street selection existed; remove before the demo. -->
-            <Button Content="Submit best route"
-                    Command="{Binding SubmitBestCommand}"/>
-
-            <Button Content="Submit a longer route"
-                    Command="{Binding SubmitLongerCommand}"/>
         </StackPanel>
 
     </Grid>

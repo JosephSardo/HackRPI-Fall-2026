@@ -89,6 +89,9 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     /// </summary>
     public GameService Game { get; }
 
+    /// <summary>The map's required data credit ("© OpenStreetMap contributors"), or null for the test grid.</summary>
+    public string? MapAttribution => Game.CityMap.Attribution;
+
     /// <summary>Call after changing the route so the Submit button, summary and map update.</summary>
     public void RouteChanged()
     {
@@ -196,26 +199,6 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     public string MapInfo => _client.Map is { } map
         ? $"{map.Name}: {map.Graph.VertexCount} intersections, {map.Graph.EdgeCount} streets"
         : "No map received";
-
-    // Placeholder buttons until the map view exists: they submit real routes on this player's copy of the map.
-    [RelayCommand] private Task SubmitBestAsync() => SubmitAsync(BestRoute());
-    [RelayCommand] private Task SubmitLongerAsync() => SubmitAsync(LongerRoute());
-
-    IReadOnlyList<int> BestRoute() => _client.Map is { } map
-        ? Network.CityMapRoundRules.BestRoute(map, _round.StartId, _round.EndId).NodeIds
-        : [];
-
-    /// <summary>The best route with a detour first: out to a neighbour of the start and back.</summary>
-    IReadOnlyList<int> LongerRoute()
-    {
-        var best = BestRoute();
-        if (_client.Map is not { } map || best.Count < 2) return best;
-        var start = map.GetIntersection(_round.StartId);
-        var neighbour = map.Graph.AdjacentEdges(start)
-            .Select(e => e.Source.Id == start.Id ? e.Target.Id : e.Source.Id)
-            .FirstOrDefault(id => id != best[1], best[1]);
-        return [_round.StartId, neighbour, .. best];
-    }
 
     async Task SubmitAsync(IReadOnlyList<int> nodeIds)
     {
