@@ -20,7 +20,7 @@ namespace PathFinder.Network;
 /// is only ever touched by one piece of code at a time and needs no locks. Game rules live in
 /// <see cref="Match"/>; this class just moves messages in and out.
 /// </summary>
-public sealed class GameHost : IDisposable
+public sealed partial class GameHost : IDisposable
 {
     public static readonly TimeSpan DefaultResultsDuration = TimeSpan.FromSeconds(10);
 
@@ -47,8 +47,8 @@ public sealed class GameHost : IDisposable
     sealed record Connected(Peer Peer) : HostEvent;
     sealed record Received(Peer Peer, NetMessage Message) : HostEvent;
     sealed record Disconnected(Peer Peer) : HostEvent;
-    sealed record RoundTimeUp(Match Match, int Round) : HostEvent;
-    sealed record ResultsTimeUp(Match Match, int Round) : HostEvent;
+    sealed record RoundTimeUp(IMatch Match, int Round) : HostEvent;
+    sealed record ResultsTimeUp(IMatch Match, int Round) : HostEvent;
     sealed record Tick : HostEvent;
     sealed record MapChanged(CityMap Map) : HostEvent;
 
@@ -62,7 +62,7 @@ public sealed class GameHost : IDisposable
     // Only touched by the event loop.
     readonly HashSet<Peer> _connections = [];
     readonly List<Peer> _players = [];   // admitted, in join order
-    Match? _match;                       // null while in the lobby
+    IMatch? _match;                      // null while in the lobby; Match or NavigatorMatch
     TimeSpan _roundDuration;             // chosen by the host player for the current match
     int _nextId;
 
@@ -270,10 +270,16 @@ public sealed class GameHost : IDisposable
                 var roundSeconds = Math.Clamp(start.RoundSeconds, Protocol.MinRoundSeconds, Protocol.MaxRoundSeconds);
                 _roundDuration = TimeSpan.FromSeconds(roundSeconds);
                 _rules = new CityMapRoundRules(_map);
+                if (start.Mode == GameMode.Navigator) return StartNavigatorMatchAsync(rounds, roundSeconds);
                 _match = new Match(_rules, _players.Select(p => p.Info!), rounds, roundSeconds, (int)ResultsDuration.TotalSeconds);
                 return ApplyAsync([new MatchStartMessage(_mapSnapshot, rounds), .. _match.Start()]);
             case SubmitPathMessage submit when _match is not null:
                 return ApplyAsync(_match.Submit(player.Id, submit.RoundNumber, submit.NodeIds ?? []));
+            // Cloud Navigator (see NavigatorMessages.cs / NavigatorMatch.cs)
+            case ChooseRoleMessage choose when _match is null:
+                return ChooseRoleAsync(peer, choose.Role);
+            case DriveToMessage drive when _match is NavigatorMatch navigator:
+                return ApplyAsync(navigator.DriveTo(player.Id, drive.RoundNumber, drive.NodeId));
             default:
                 return Task.CompletedTask;
         }

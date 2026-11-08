@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PathFinder.ViewModels"
+             x:Class="PathFinder.Views.DriverView"
+             x:DataType="vm:DriverViewModel"
+             Background="#1d1945"
+             TextElement.Foreground="#d3eaff">
+
+    <UserControl.Styles>
+        <Style Selector="Button">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Cloud Navigator, the driver's ground view. Placeholder layout: restyle freely; bindings are the contract.
+         Deliberately no map: just the exits, relative to the way you're facing (left to right). -->
+    <StackPanel Width="560" Spacing="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="Bold"/>
+        <TextBlock Text="{Binding TimeLeft}" FontSize="18"/>
+        <TextBlock Text="{Binding Distance}" Opacity="0.8"/>
+        <TextBlock Text="{Binding Hint}" TextWrapping="Wrap"/>
+
+        <ItemsControl ItemsSource="{Binding Exits}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ExitOption">
+                    <Button Command="{Binding Drive}" Margin="6" Padding="16,12" MinWidth="120">
+                        <StackPanel Spacing="4" HorizontalAlignment="Center">
+                            <TextBlock Text="{Binding Label}" FontSize="22" HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding Detail}" Opacity="0.7" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

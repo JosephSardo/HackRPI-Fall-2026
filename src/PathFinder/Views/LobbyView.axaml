@@ -88,6 +88,17 @@
                 <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding RadiusMeters}" PlaceholderText="Radius"/>
             </Grid>
 
+            <!-- Cloud Navigator (co-op) placeholder controls: mode (host only) and roles (everyone) -->
+            <StackPanel Spacing="6" Margin="0,8,0,0">
+                <CheckBox Content="Cloud Navigator mode (co-op: one navigates, one drives)" IsChecked="{Binding NavigatorMode}"
+                          IsVisible="{Binding IsHost}" IsEnabled="{Binding !MatchStarted}"/>
+                <TextBlock Text="{Binding NavigatorTeam}" TextWrapping="Wrap" Opacity="0.7"/>
+                <StackPanel Orientation="Horizontal" Spacing="8" IsEnabled="{Binding !MatchStarted}">
+                    <Button Content="I'll navigate" Command="{Binding BeNavigatorCommand}"/>
+                    <Button Content="I'll drive" Command="{Binding BeDriverCommand}"/>
+                </StackPanel>
+            </StackPanel>
+
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
                 <Button x:Name="StartGameButton" Content="{Binding StartButtonText}" Command="{Binding StartMatchCommand}"
                         IsVisible="{Binding IsHost}" IsEnabled="{Binding CanStartMatch}"/>

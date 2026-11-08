@@ -11,6 +11,9 @@ namespace PathFinder.Views;
 /// <summary>A route to draw on a <see cref="RouteMap"/>: intersection IDs in order, plus how it looks.</summary>
 public sealed record RouteLine(IReadOnlyList<int> NodeIds, string Color, double Thickness, bool Dashed = false);
 
+/// <summary>A ring (or, if Filled, a dot) drawn on one intersection of a <see cref="RouteMap"/>.</summary>
+public sealed record MapMarker(int NodeId, string Color, double Radius = 11, bool Filled = false);
+
 /// <summary>
 /// A simple, read-only drawing of a <see cref="CityMap"/> with routes on top: streets as thin lines,
 /// each route in its own colour, start (green ring) and end (red ring). Used on the Results screen.
@@ -24,7 +27,20 @@ public sealed class RouteMap : Control
     public static readonly StyledProperty<IReadOnlyList<RouteLine>?> RoutesProperty =
         AvaloniaProperty.Register<RouteMap, IReadOnlyList<RouteLine>?>(nameof(Routes));
 
-    static RouteMap() => AffectsRender<RouteMap>(MapProperty, RoutesProperty);
+    /// <summary>
+    /// Optional rings/dots to draw on top. When set (even empty), they replace the default start/end
+    /// rings taken from the first route (Cloud Navigator uses this for the destination and the driver).
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<MapMarker>?> MarkersProperty =
+        AvaloniaProperty.Register<RouteMap, IReadOnlyList<MapMarker>?>(nameof(Markers));
+
+    static RouteMap() => AffectsRender<RouteMap>(MapProperty, RoutesProperty, MarkersProperty);
+
+    public IReadOnlyList<MapMarker>? Markers
+    {
+        get => GetValue(MarkersProperty);
+        set => SetValue(MarkersProperty, value);
+    }
 
     public CityMap? Map
     {
@@ -83,8 +99,17 @@ public sealed class RouteMap : Control
                 }
         }
 
+        if (Markers is { } markers)
+        {
+            foreach (var m in markers)
+                if (TryGet(map, m.NodeId, out var at))
+                {
+                    var brush = new SolidColorBrush(Color.Parse(m.Color));
+                    context.DrawEllipse(m.Filled ? brush : null, m.Filled ? null : new Pen(brush, 4), ToScreen(at), m.Radius, m.Radius);
+                }
+        }
         // Start and end of the round: the ends of the first route (the best route).
-        if (routes.FirstOrDefault(r => r.NodeIds.Count >= 2) is { } first)
+        else if (routes.FirstOrDefault(r => r.NodeIds.Count >= 2) is { } first)
         {
             if (TryGet(map, first.NodeIds[0], out var start)) Ring(context, ToScreen(start), "#3DDC84");
             if (TryGet(map, first.NodeIds[^1], out var end)) Ring(context, ToScreen(end), "#FF5252");

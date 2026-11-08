@@ -49,6 +49,8 @@ public sealed class GameClient : IDisposable
     public event Action<RoundResultsMessage>? RoundResultsReady;
     /// <summary>Match finished; the host's lobby is open again.</summary>
     public event Action<MatchOverMessage>? MatchOver;
+    /// <summary>Cloud Navigator: the driver moved (also sent once at the start of each round).</summary>
+    public event Action<DriverMovedMessage>? DriverMoved;
     /// <summary>Connection ended unexpectedly. The argument is a reason that can be shown to the player.</summary>
     public event Action<string>? Disconnected;
 
@@ -99,7 +101,15 @@ public sealed class GameClient : IDisposable
     }
 
     /// <summary>Host player only: start the match. The host ignores this from anyone else.</summary>
-    public Task StartMatchAsync(int rounds, int roundSeconds) => SendAsync(new StartMatchMessage(rounds, roundSeconds));
+    public Task StartMatchAsync(int rounds, int roundSeconds, GameMode mode = GameMode.Competitive) =>
+        SendAsync(new StartMatchMessage(rounds, roundSeconds, mode));
+
+    /// <summary>Cloud Navigator, in the lobby: ask to be the navigator or the driver.</summary>
+    public Task ChooseRoleAsync(PlayerRole role) => SendAsync(new ChooseRoleMessage(role));
+
+    /// <summary>Cloud Navigator, driver only: ask to drive one street to <paramref name="nodeId"/>. The host checks it.</summary>
+    public Task DriveToAsync(int nodeId) =>
+        CurrentRound == 0 ? Task.CompletedTask : SendAsync(new DriveToMessage(CurrentRound, nodeId));
 
     /// <summary>
     /// Sends this round's path (node IDs, start to end). Only the first call per round is sent;
@@ -192,6 +202,9 @@ public sealed class GameClient : IDisposable
                         break;
                     case RoundResultsMessage results:
                         Raise(() => RoundResultsReady?.Invoke(results));
+                        break;
+                    case DriverMovedMessage moved:
+                        Raise(() => DriverMoved?.Invoke(moved));
                         break;
                     case MatchOverMessage over:
                         Raise(() =>

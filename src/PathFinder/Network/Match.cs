@@ -10,7 +10,7 @@ namespace PathFinder.Network;
 /// it returns RoundResults, <see cref="ResultsTimeUp"/> once the results have been shown.
 /// Not thread-safe: the host calls it from one place only.
 /// </summary>
-public sealed class Match
+public sealed class Match : IMatch
 {
     enum Phase { Playing, Results, Over }
 
