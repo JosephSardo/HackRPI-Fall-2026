@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text.Json;
 
@@ -9,11 +10,16 @@ namespace PathFinder.Loading;
 /// </summary>
 internal sealed class StreetNetwork
 {
-    private StreetNetwork(Dictionary<long, LatLon> positions, Dictionary<long, HashSet<long>> neighbors)
+    private StreetNetwork(Dictionary<long, LatLon> positions, Dictionary<long, HashSet<long>> neighbors,
+                          Dictionary<(long, long), string> segmentNames)
     {
         Positions = positions;
         Neighbors = neighbors;
+        _segmentNames = segmentNames;
     }
+
+    // Keyed by the segment's two nodes, lower OSM ID first. Unnamed segments aren't in it.
+    private readonly Dictionary<(long, long), string> _segmentNames;
 
     /// <summary>Node positions by OSM node ID. A node can be missing at the edge of the data.</summary>
     public IReadOnlyDictionary<long, LatLon> Positions { get; }
@@ -28,6 +34,12 @@ internal sealed class StreetNetwork
     // where OSM splits one street into two ways, and degree 1 is a dead end.
     public bool IsJunction(long node) => Degree(node) >= 3;
 
+    /// <summary>
+    /// The name of the way the segment between two neighbouring nodes belongs to: its OSM
+    /// <c>name</c>, else its <c>ref</c> (route numbers like "NY 2"), else null.
+    /// </summary>
+    public string? SegmentName(long a, long b) => _segmentNames.GetValueOrDefault(a < b ? (a, b) : (b, a));
+
     /// <summary>Reads the JSON that <see cref="StreetQuery"/> asks Overpass for.</summary>
     public static StreetNetwork Parse(string json)
     {
@@ -35,6 +47,7 @@ internal sealed class StreetNetwork
 
         var positions = new Dictionary<long, LatLon>();
         var neighbors = new Dictionary<long, HashSet<long>>();
+        var segmentNames = new Dictionary<(long, long), string>();
 
         foreach (var element in doc.RootElement.GetProperty("elements").EnumerateArray())
         {
@@ -48,6 +61,7 @@ internal sealed class StreetNetwork
 
                 case "way":
                     // A way lists its nodes in order; each consecutive pair is one street segment.
+                    var name = WayName(element);
                     long? prev = null;
                     foreach (var nodeRef in element.GetProperty("nodes").EnumerateArray())
                     {
@@ -56,15 +70,27 @@ internal sealed class StreetNetwork
                         {
                             NeighborsOf(p).Add(current);
                             NeighborsOf(current).Add(p);
+                            // Where two ways share a segment, the first named one wins.
+                            if (name is not null) segmentNames.TryAdd(p < current ? (p, current) : (current, p), name);
                         }
                         prev = current;
                     }
                     break;
             }
         }
-        return new StreetNetwork(positions, neighbors);
+        return new StreetNetwork(positions, neighbors, segmentNames);
 
         HashSet<long> NeighborsOf(long node) =>
             neighbors.TryGetValue(node, out var set) ? set : neighbors[node] = new HashSet<long>();
+    }
+
+    private static string? WayName(JsonElement way)
+    {
+        if (!way.TryGetProperty("tags", out var tags) || tags.ValueKind != JsonValueKind.Object) return null;
+        foreach (var key in (ReadOnlySpan<string>)["name", "ref"])
+            if (tags.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String
+                && value.GetString()!.Trim() is { Length: > 0 } text)
+                return text;
+        return null;
     }
 }

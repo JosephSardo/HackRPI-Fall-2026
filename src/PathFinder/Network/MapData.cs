@@ -16,8 +16,11 @@ public sealed record MapData(string Name, List<NodeData> Nodes, List<StreetData>
 /// <summary>An intersection. X/Y are in metres (or whatever units the map was built in).</summary>
 public sealed record NodeData(int Id, double X, double Y);
 
-/// <summary>A street between two intersections. Length is what scoring uses.</summary>
-public sealed record StreetData(int Id, int FromId, int ToId, double Length, string? ImagePath = null);
+/// <summary>
+/// A street between two intersections. Length is what scoring uses. Name is the real street name
+/// (null if unnamed); it's last and optional so snapshots and cache files from before it still load.
+/// </summary>
+public sealed record StreetData(int Id, int FromId, int ToId, double Length, string? ImagePath = null, string? Name = null);
 
 public static class MapDataConverter
 {
@@ -31,7 +34,7 @@ public static class MapDataConverter
         map.Graph.Edges
             .Select(e => e.Tag)
             .OrderBy(s => s.Id)
-            .Select(s => new StreetData(s.Id, s.Start.Id, s.End.Id, s.Distance, s.ImagePath))
+            .Select(s => new StreetData(s.Id, s.Start.Id, s.End.Id, s.Distance, s.ImagePath, s.Name))
             .ToList(),
         map.Attribution);
 
@@ -55,7 +58,7 @@ public static class MapDataConverter
         {
             if (!nodes.TryGetValue(s.FromId, out var from) || !nodes.TryGetValue(s.ToId, out var to))
                 throw new InvalidDataException($"Street {s.Id} refers to an intersection that isn't in the map.");
-            map.AddStreet(new Street(s.Id, s.Length, from, to) { ImagePath = s.ImagePath! });
+            map.AddStreet(new Street(s.Id, s.Length, from, to) { ImagePath = s.ImagePath!, Name = s.Name });
         }
         return map;
     }

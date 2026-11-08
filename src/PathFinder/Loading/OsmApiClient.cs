@@ -77,8 +77,8 @@ internal sealed class OsmApiClient : IDisposable
 
     /// <summary>
     /// Rewrites an OSM JSON document to just the street ways (same <c>highway</c> filter as
-    /// <see cref="StreetQuery"/>) and the nodes they reference, dropping tags, relations and
-    /// everything else.
+    /// <see cref="StreetQuery"/>) and the nodes they reference, dropping relations and everything
+    /// else. Of each way's tags only the ones the game reads are kept (<see cref="KeptTags"/>).
     /// </summary>
     internal static string KeepStreets(JsonDocument doc)
     {
@@ -116,6 +116,12 @@ internal sealed class OsmApiClient : IDisposable
                 writer.WriteNumber("id", way.GetProperty("id").GetInt64());
                 writer.WritePropertyName("nodes");
                 way.GetProperty("nodes").WriteTo(writer);
+                writer.WriteStartObject("tags");
+                var tags = way.GetProperty("tags"); // IsStreet checked it's there
+                foreach (var key in KeptTags)
+                    if (tags.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String)
+                        writer.WriteString(key, value.GetString());
+                writer.WriteEndObject();
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();
@@ -123,6 +129,9 @@ internal sealed class OsmApiClient : IDisposable
         }
         return System.Text.Encoding.UTF8.GetString(output.ToArray());
     }
+
+    /// <summary>The way tags <see cref="StreetNetwork.Parse"/> reads; the rest are dropped.</summary>
+    private static readonly string[] KeptTags = ["highway", "name", "ref"];
 
     private static bool IsStreet(JsonElement way) =>
         way.TryGetProperty("tags", out var tags)

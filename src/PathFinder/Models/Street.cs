@@ -13,6 +13,9 @@ public class Street
 
     public string? ImagePath { get; set; }
 
+    /// <summary>The street's name from OpenStreetMap (e.g. "Congress Street"), or null if it has none.</summary>
+    public string? Name { get; set; }
+
     public Street(int id, double d, Intersection s, Intersection e)
     {
         if(d < 0 || !double.IsFinite(d))
