@@ -21,8 +21,9 @@ public static class HostMapLoader
     // Used when the host leaves the lobby's Location empty: RPI campus.
     public const double DefaultLatitude = 42.7284, DefaultLongitude = -73.6918;
     public const double DefaultRadiusMeters = 300;
-    // Long enough for the Overpass client's own retries (waits of 1, 2, 4, 8 s) to finish.
-    public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(45);
+    // Long enough for the Overpass client to give up on its servers (~45 s at worst) and then
+    // for the OpenStreetMap API fallback (15 s timeout) to run.
+    public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(75);
 
     /// <summary>
     /// The map within <paramref name="radiusMeters"/> of a location. <paramref name="build"/> replaces the real downloader (for testing);
