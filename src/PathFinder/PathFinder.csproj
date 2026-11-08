@@ -9,7 +9,9 @@
 
   <ItemGroup>
     <Folder Include="Models\" />
-    <AvaloniaResource Include="Assets\**" />
+    <AvaloniaResource Include="Assets\**" Exclude="Assets\Maps\**" />
+    <!-- Bundled demo maps (see Network/DemoMaps.cs), read with GetManifestResourceStream("PathFinder.Maps.<file>") -->
+    <EmbeddedResource Include="Assets\Maps\*.json" LogicalName="PathFinder.Maps.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

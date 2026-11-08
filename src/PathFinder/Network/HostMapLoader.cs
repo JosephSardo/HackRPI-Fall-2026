@@ -12,9 +12,10 @@ public sealed record HostMap(CityMap Map, string? Warning, bool FromCache);
 
 /// <summary>
 /// Gets the host its canonical map when a match starts. Uses a saved copy of the location if there is
-/// one (<see cref="MapCache"/>); otherwise downloads it and saves it. If downloading fails, takes too
-/// long, or produces a map with no playable start/end pair, falls back to the built-in test grid so
-/// the host can always run a game.
+/// one (<see cref="MapCache"/>) or it's a lobby preset with a bundled map (<see cref="DemoMaps"/>);
+/// otherwise downloads it and saves it. If downloading fails, takes too long, or produces a map with no
+/// playable start/end pair, falls back to the nearest bundled demo map (within ~1 km), and failing that
+/// to the built-in test grid, so the host can always run a game.
 /// </summary>
 public static class HostMapLoader
 {
@@ -36,6 +37,9 @@ public static class HostMapLoader
         var useCache = build is null;
         if (useCache && MapCache.TryLoad(latitude, longitude, radiusMeters) is { } saved && IsPlayable(saved))
             return new HostMap(saved, null, FromCache: true);
+        // A lobby preset: its bundled copy is the same map, without the download.
+        if (useCache && DemoMaps.Exact(latitude, longitude, radiusMeters) is { } preset && DemoMaps.Load(preset) is { } bundled)
+            return new HostMap(bundled, null, FromCache: true);
 
         build ??= ct => MapBuilder.BuildAsync(latitude, longitude, radiusMeters, ct);
         var elapsed = Stopwatch.StartNew();
@@ -49,7 +53,7 @@ public static class HostMapLoader
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[host] Map loading failed, using the test grid: {ex}");
+            Debug.WriteLine($"[host] Map loading failed, using a demo map or the test grid: {ex}");
             var reason = ex switch
             {
                 OperationCanceledException or TimeoutException => "took too long to load",
@@ -58,9 +62,10 @@ public static class HostMapLoader
             };
             // Include the actual error so problems (e.g. OpenStreetMap rate limits) can be diagnosed from the lobby.
             var detail = ex is OperationCanceledException ? "" : $" ({ex.GetType().Name}: {Shorten(ex.Message)})";
-            return new HostMap(TestMaps.Grid(),
-                $"The real map {reason} after {elapsed.Elapsed.TotalSeconds:0.0}s{detail}, so this game uses the built-in test map.",
-                FromCache: false);
+            var problem = $"The real map {reason} after {elapsed.Elapsed.TotalSeconds:0.0}s{detail}";
+            if (DemoMaps.Nearest(latitude, longitude) is { } nearby && DemoMaps.Load(nearby) is { } demo && IsPlayable(demo))
+                return new HostMap(demo, $"{problem}, so this game used the saved demo map for {nearby.Name}.", FromCache: true);
+            return new HostMap(TestMaps.Grid(), $"{problem}, so this game uses the built-in test map.", FromCache: false);
         }
     }
 
