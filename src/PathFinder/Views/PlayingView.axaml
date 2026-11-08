@@ -14,7 +14,13 @@
     </UserControl.Styles>
     
     <!-- Placeholder layout: restyle freely; bindings are the contract. -->
-    <Grid Margin="16" RowDefinitions="Auto,*,Auto">
+    <Grid Margin="16" RowDefinitions="Auto,*,Auto" ClipToBounds="True">
+        <!-- Load background image -->
+        <Image Source="avares://PathFinder/Assets/placeholderbg.png"
+               Grid.Row="0"
+               Grid.RowSpan="3"
+               Stretch="UniformToFill"/>
+
         <!-- Header information -->
         <StackPanel Grid.Row="0" Spacing="8">
             <TextBlock Text="{Binding Title}"
@@ -34,7 +40,7 @@
                 Grid.Row="1"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"
-                Background="#1d1945"/>
+                Background="#ffffff00"/>
 
         <!-- Buttons -->
         <StackPanel Grid.Row="2"
