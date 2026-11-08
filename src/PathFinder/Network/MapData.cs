@@ -9,8 +9,9 @@ namespace PathFinder.Network;
 /// A plain, serializable snapshot of a <see cref="CityMap"/>: what the host sends to clients so
 /// every laptop plays on exactly the same map with the same IDs. No graph types, no object references.
 /// Start/end aren't included: they change every round and travel in RoundStart.
+/// Attribution is the credit the map's data source requires on screen (null for the test grid).
 /// </summary>
-public sealed record MapData(string Name, List<NodeData> Nodes, List<StreetData> Streets);
+public sealed record MapData(string Name, List<NodeData> Nodes, List<StreetData> Streets, string? Attribution = null);
 
 /// <summary>An intersection. X/Y are in metres (or whatever units the map was built in).</summary>
 public sealed record NodeData(int Id, double X, double Y);
@@ -31,7 +32,8 @@ public static class MapDataConverter
             .Select(e => e.Tag)
             .OrderBy(s => s.Id)
             .Select(s => new StreetData(s.Id, s.Start.Id, s.End.Id, s.Distance, s.ImagePath))
-            .ToList());
+            .ToList(),
+        map.Attribution);
 
     /// <summary>
     /// Rebuild a <see cref="CityMap"/> from a snapshot (on clients, from the host's MatchStart).
@@ -40,7 +42,7 @@ public static class MapDataConverter
     /// </summary>
     public static CityMap ToCityMap(MapData data)
     {
-        var map = new CityMap(data.Name);
+        var map = new CityMap(data.Name) { Attribution = data.Attribution };
         var nodes = new Dictionary<int, Intersection>();
         foreach (var n in data.Nodes)
         {
