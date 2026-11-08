@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using PathFinder.Models;
@@ -11,6 +12,7 @@ namespace PathFinder.Loading;
 /// folder:
 /// <list type="bullet">
 /// <item><see cref="StreetQuery"/> builds the Overpass query and <see cref="OverpassClient"/> runs it.</item>
+/// <item><see cref="OsmApiClient"/> is the fallback when Overpass fails: the main OpenStreetMap API.</item>
 /// <item><see cref="StreetNetwork"/> parses the response into nodes and the segments joining them.</item>
 /// <item><see cref="StreetTracer"/> follows the segments to find streets between intersections.</item>
 /// <item><see cref="CityMapBuilder"/> turns those into a <see cref="CityMap"/>.</item>
@@ -21,6 +23,7 @@ public class StreetLoader : IDisposable
 {
     private readonly SearchArea _area;
     private readonly OverpassClient _overpass = new();
+    private readonly OsmApiClient _osmApi = new();
 
     /// <param name="latitude">Center latitude in degrees.</param>
     /// <param name="longitude">Center longitude in degrees.</param>
@@ -37,6 +40,7 @@ public class StreetLoader : IDisposable
     public void Dispose()
     {
         _overpass.Dispose();
+        _osmApi.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -74,6 +78,39 @@ public class StreetLoader : IDisposable
         return CityMapBuilder.Build(network, _area);
     }
 
-    private async Task<StreetNetwork> LoadNetwork(CancellationToken cancellationToken) =>
-        StreetNetwork.Parse(await _overpass.QueryAsync(StreetQuery.For(_area), cancellationToken));
+    /// <summary>
+    /// Tries Overpass first and, if it fails for any reason other than the caller cancelling, the
+    /// OpenStreetMap API. If both fail, the exception's message names both failures.
+    /// </summary>
+    private async Task<StreetNetwork> LoadNetwork(CancellationToken cancellationToken)
+    {
+        Exception overpassError;
+        try
+        {
+            return StreetNetwork.Parse(await _overpass.QueryAsync(StreetQuery.For(_area), cancellationToken));
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            overpassError = ex;
+        }
+
+        try
+        {
+            return StreetNetwork.Parse(await _osmApi.QueryStreetsAsync(_area, cancellationToken));
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new HttpRequestException(
+                $"Overpass: {Describe(overpassError)}; OSM API: {Describe(ex)}",
+                new AggregateException(overpassError, ex));
+        }
+    }
+
+    /// <summary>A few words on why a download failed, short enough for the host's warning.</summary>
+    private static string Describe(Exception ex) => ex switch
+    {
+        TaskCanceledException or TimeoutException => "timed out",
+        HttpRequestException { StatusCode: { } status } => $"HTTP {(int)status}",
+        _ => ex.Message.Length <= 60 ? ex.Message : ex.Message[..60] + "...",
+    };
 }

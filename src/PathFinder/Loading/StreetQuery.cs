@@ -7,7 +7,8 @@ internal static class StreetQuery
 {
     // Drivable public streets. "service" (driveways, parking aisles) is excluded so
     // every driveway doesn't register as an intersection.
-    private const string StreetFilter =
+    // OsmApiClient uses the same filter to pick the streets out of its data.
+    internal const string StreetFilter =
         "^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street)(_link)?$";
 
     /// <summary>
