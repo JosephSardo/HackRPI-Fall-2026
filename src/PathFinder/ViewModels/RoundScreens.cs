@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -233,21 +234,48 @@ public partial class ResultsViewModel : CountdownViewModel
 {
     readonly bool _isLastRound;
 
-    public ResultsViewModel(RoundResultsMessage results, string? myId, bool isLastRound)
+    // Distinct from the best route (green) and the start/end rings (green/red).
+    static readonly string[] PlayerColors =
+        ["#FFC83D", "#4FC3F7", "#BA68C8", "#FF8A65", "#F06292", "#AED581", "#90A4AE", "#FFD180"];
+    const string BestRouteColor = "#3DDC84";
+
+    public ResultsViewModel(RoundResultsMessage results, string? myId, bool isLastRound, CityMap? map = null)
         : base(new RoundClock(TimeSpan.FromSeconds(results.SecondsUntilNext)))
     {
         _isLastRound = isLastRound;
         Title = $"Round {results.RoundNumber} results";
-        Rows = results.Results.Select(r =>
+        Map = map;
+
+        // One colour per player, used for both their row and their line on the map.
+        var colorOf = results.Results.Select((r, i) => (r.PlayerId, Color: PlayerColors[i % PlayerColors.Length]))
+                                     .ToDictionary(x => x.PlayerId, x => x.Color);
+        Rows = results.Results.Select(r => new ResultRow(
             $"#{r.Rank}  {r.Name}{(r.PlayerId == myId ? " (you)" : "")}  " +
-            (r.Submitted ? $"{r.Score:0.#} points" : "no path, 0 points")).ToList();
-        BestRoute = $"Best route: {string.Join(" -> ", results.OptimalNodeIds)} (length {results.OptimalLength:0.#})";
+            (r.Submitted ? $"{r.Score:0.#} points" : "no path, 0 points"),
+            Brush.Parse(colorOf[r.PlayerId]))).ToList();
+        BestRoute = results.OptimalNodeIds.Count < 2
+            ? "No best route to show."
+            : $"Best route (green band): {results.OptimalNodeIds.Count - 1} streets, {results.OptimalLength:0} m";
+
+        // Best route first (a wide translucent band underneath), then everyone's route, yours last and thickest.
+        var routes = new List<Views.RouteLine> { new(results.OptimalNodeIds, "#663DDC84", 14) };
+        routes.AddRange(results.Results
+            .Where(r => r.Submitted && r.NodeIds.Count >= 2)
+            .OrderBy(r => r.PlayerId == myId)
+            .Select(r => new Views.RouteLine(r.NodeIds, colorOf[r.PlayerId], r.PlayerId == myId ? 6 : 4,
+                                             Dashed: r.PlayerId != myId)));
+        MapRoutes = routes;
         Tick();
     }
 
     public string Title { get; }
-    public IReadOnlyList<string> Rows { get; }
+    public IReadOnlyList<ResultRow> Rows { get; }
     public string BestRoute { get; }
+    public IBrush BestRouteSwatch { get; } = Brush.Parse(BestRouteColor);
+
+    /// <summary>This player's copy of the round's map (null if unavailable), and the routes to draw on it.</summary>
+    public CityMap? Map { get; }
+    public IReadOnlyList<Views.RouteLine> MapRoutes { get; }
 
     protected override void Tick()
     {
@@ -255,6 +283,9 @@ public partial class ResultsViewModel : CountdownViewModel
         TimeLeft = seconds <= 0 ? "Starting..." : $"{(_isLastRound ? "Final standings" : "Next round")} in {seconds:0}s";
     }
 }
+
+/// <summary>A results line plus the colour of that player's route on the map.</summary>
+public sealed record ResultRow(string Text, IBrush Color);
 
 /// <summary>Final standings, then back to the lobby.</summary>
 public partial class SummaryViewModel(MatchOverMessage over, string? myId, Action backToLobby) : ViewModelBase
