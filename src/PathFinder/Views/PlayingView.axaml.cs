@@ -17,8 +17,10 @@ public partial class PlayingView : UserControl
     private readonly Bitmap _nodeImage;
     private readonly Bitmap _streetImage;
 
-    private const double NodeSize = 48;
-    private const double StreetSegmentSize = 48;
+    // Sized per map in DrawMap: real maps have intersections much closer together than the test grid.
+    private double NodeSize = 48;
+    private double StreetSegmentSize = 48;
+    private const double MaxSpriteSize = 48, MinSpriteSize = 14;
 
     public PlayingView()
     {
@@ -188,6 +190,17 @@ public partial class PlayingView : UserControl
         _minX = minX;
         _minY = minY;
         _scale = scale;
+
+        // Shrink the sprites on crowded maps so intersections don't pile up into blobs: size them
+        // from the shorter streets on screen (20th percentile), between MinSpriteSize and MaxSpriteSize.
+        var streetLengths = map.Graph.Edges
+            .Select(e => Math.Sqrt(Math.Pow(e.Source.X - e.Target.X, 2) + Math.Pow(e.Source.Y - e.Target.Y, 2)) * scale)
+            .OrderBy(l => l).ToList();
+        if (streetLengths.Count > 0)
+        {
+            var shortish = streetLengths[(int)(streetLengths.Count * 0.2)];
+            NodeSize = StreetSegmentSize = Math.Clamp(shortish * 0.6, MinSpriteSize, MaxSpriteSize);
+        }
         _padding = padding;
         _hasLayout = true;
 
