@@ -279,8 +279,8 @@ public sealed partial class GameHost : IDisposable
             // Cloud Navigator (see NavigatorMessages.cs / NavigatorMatch.cs)
             case ChooseRoleMessage choose when _match is null:
                 return ChooseRoleAsync(peer, choose.Role);
-            case DriveToMessage drive when _match is NavigatorMatch navigator:
-                return ApplyAsync(navigator.DriveTo(player.Id, drive.RoundNumber, drive.NodeId));
+            case DriveToMessage drive:
+                return DriveToAsync(peer, player, drive);
             default:
                 return Task.CompletedTask;
         }
@@ -304,7 +304,10 @@ public sealed partial class GameHost : IDisposable
         foreach (var message in messages)
         {
             if (match is not null && message is RoundStartMessage start)
+            {
+                _roundStartedMs = Environment.TickCount64; // Cloud Navigator scores the time taken
                 _ = TimerAsync(_roundDuration + SubmitGrace, new RoundTimeUp(match, start.RoundNumber), _cts.Token);
+            }
             if (match is not null && message is RoundResultsMessage results)
                 _ = TimerAsync(ResultsDuration, new ResultsTimeUp(match, results.RoundNumber), _cts.Token);
             await BroadcastAsync(message);

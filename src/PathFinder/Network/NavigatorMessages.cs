@@ -47,6 +47,31 @@ public sealed record DriveToMessage(int RoundNumber, int NodeId) : NetMessage;
 public sealed record DriverMovedMessage(int RoundNumber, string PlayerId, int NodeId, double HeadingDegrees, double DistanceSoFar)
     : NetMessage;
 
+/// <summary>
+/// Sent just before each round's RoundStart: who drives and who navigates this round (the team swaps
+/// every round, so both players get to drive) and which way the driver faces at the start (picked at
+/// random by the host, so every client shows the same thing).
+/// </summary>
+public sealed record NavigatorRoundMessage(int RoundNumber, string NavigatorId, string DriverId, double StartHeadingDegrees)
+    : NetMessage;
+
+// Host -> the driver only
+/// <summary>
+/// The host refused the driver's last DriveTo (stale click, wrong round, not a street from here...).
+/// The driver's position hasn't changed; <paramref name="Reason"/> is short and can be shown as is.
+/// </summary>
+public sealed record DriveRejectedMessage(int RoundNumber, string Reason) : NetMessage;
+
+// Host -> all
+/// <summary>
+/// Sent just before a Cloud Navigator round's RoundResults: how the team's score was worked out.
+/// Score = RoutePoints x SpeedMultiplier, where SpeedMultiplier = 1 + the fraction of the round's time
+/// left on arrival (1 to 2). Everything is 0 if the driver didn't arrive.
+/// </summary>
+public sealed record NavigatorScoreMessage(int RoundNumber, bool Arrived, double RoutePoints, double SecondsUsed,
+                                           int RoundSeconds, double SpeedMultiplier, double Score, double DistanceDriven)
+    : NetMessage;
+
 /// <summary>Who is the navigator and who is the driver, resolved from the lobby's choices.</summary>
 public static class NavigatorRoles
 {

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -8,6 +9,27 @@ namespace PathFinder.Network;
 // only ever called from the event loop, so no locks; the game rules live in NavigatorMatch.
 public sealed partial class GameHost
 {
+    /// <summary>When the current round's RoundStart went out (Environment.TickCount64), for Cloud Navigator's time score.</summary>
+    long _roundStartedMs;
+
+    /// <summary>
+    /// The driver asks to drive one street. Accepted steps are broadcast (everyone follows the driver);
+    /// a refusal goes back to the player who asked only, so their screen can say why and let them try again.
+    /// </summary>
+    Task DriveToAsync(Peer peer, PlayerInfo player, DriveToMessage drive)
+    {
+        if (_match is not NavigatorMatch navigator)
+            return SendAsync(peer, new DriveRejectedMessage(drive.RoundNumber, "There's no Cloud Navigator round on."));
+        var elapsed = TimeSpan.FromMilliseconds(Environment.TickCount64 - _roundStartedMs);
+        var messages = navigator.DriveTo(player.Id, drive.RoundNumber, drive.NodeId, elapsed);
+        if (messages is [DriveRejectedMessage rejected])
+        {
+            Debug.WriteLine($"[host] Refused {player.Name}'s step to {drive.NodeId}: {rejected.Reason}");
+            return SendAsync(peer, rejected);
+        }
+        return ApplyAsync(messages);
+    }
+
     /// <summary>Lobby: a player picks a role. Navigator and Driver are one player each, so whoever had it loses it.</summary>
     Task ChooseRoleAsync(Peer peer, PlayerRole role)
     {
