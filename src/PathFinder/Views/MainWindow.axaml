@@ -23,7 +23,12 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <!-- The current screen's view model; ViewLocator picks the matching view. -->
-    <ContentControl Content="{Binding CurrentScreen}"/>
+    <!-- The current screen's view model; ViewLocator picks the matching view. Screens cross-fade
+         into each other; each screen then animates its own content in (see Views/Motion.cs). -->
+    <TransitioningContentControl Content="{Binding CurrentScreen}">
+        <TransitioningContentControl.PageTransition>
+            <CrossFade Duration="0:0:0.28"/>
+        </TransitioningContentControl.PageTransition>
+    </TransitioningContentControl>
 
 </Window>

@@ -24,6 +24,9 @@ public sealed class RoundClock(TimeSpan duration)
     public TimeSpan Remaining => duration > _elapsed.Elapsed ? duration - _elapsed.Elapsed : TimeSpan.Zero;
     public bool IsUp => Remaining == TimeSpan.Zero;
     public string Text => $"{Math.Ceiling(Remaining.TotalSeconds):0}s left";
+
+    /// <summary>How much of the time is left, from 1 (just started) to 0 (up).</summary>
+    public double Fraction => duration > TimeSpan.Zero ? Remaining / duration : 0;
 }
 
 /// <summary>Screens that show "N of M submitted".</summary>
@@ -37,13 +40,28 @@ public abstract partial class CountdownViewModel : ViewModelBase, IDisposable
 {
     readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(250) };
 
+    /// <summary>Below this much time left, the countdown turns red and pulses.</summary>
+    public static readonly TimeSpan LowTime = TimeSpan.FromSeconds(10);
+
     [ObservableProperty] private string _timeLeft = "";
+
+    /// <summary>Time left as a fraction (1 to 0), for the countdown bar.</summary>
+    [ObservableProperty] private double _timeFraction = 1;
+
+    /// <summary>True in the last few seconds (<see cref="LowTime"/>), while the clock is still running.</summary>
+    [ObservableProperty] private bool _isLowOnTime;
 
     protected CountdownViewModel(RoundClock clock)
     {
         Clock = clock;
         _timeLeft = clock.Text;
-        _timer.Tick += (_, _) => Tick();
+        _timeFraction = clock.Fraction;
+        _timer.Tick += (_, _) =>
+        {
+            TimeFraction = Clock.Fraction;
+            IsLowOnTime = !Clock.IsUp && Clock.Remaining <= LowTime;
+            Tick();
+        };
         _timer.Start();
     }
 

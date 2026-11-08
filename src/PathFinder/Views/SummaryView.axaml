@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PathFinder.ViewModels"
              xmlns:sys="using:System"
+             xmlns:views="using:PathFinder.Views"
              x:Class="PathFinder.Views.SummaryView"
              x:DataType="vm:SummaryViewModel"
              Background="#1d1945"
@@ -15,15 +16,16 @@
     
     <!-- Placeholder layout: restyle freely; bindings are the contract. -->
     <StackPanel Width="460" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <TextBlock Text="{Binding Winner}" FontSize="28" FontWeight="Bold"/>
-        <TextBlock Text="Final standings" FontWeight="SemiBold"/>
-        <ItemsControl ItemsSource="{Binding Rows}">
+        <TextBlock Text="{Binding Winner}" FontSize="28" FontWeight="Bold"
+                   HorizontalAlignment="Left" views:Motion.PopDelay="150"/>
+        <TextBlock Text="Final standings" FontWeight="SemiBold" views:Motion.EnterDelay="450"/>
+        <ItemsControl ItemsSource="{Binding Rows}" views:Motion.Stagger="120" views:Motion.StaggerStart="550">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="sys:String">
                     <TextBlock Text="{Binding}" Margin="8,2"/>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <Button Content="Back to lobby" Command="{Binding BackToLobbyCommand}"/>
+        <Button Content="Back to lobby" Command="{Binding BackToLobbyCommand}" views:Motion.EnterDelay="1000"/>
     </StackPanel>
 </UserControl>

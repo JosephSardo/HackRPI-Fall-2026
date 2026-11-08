@@ -21,8 +21,10 @@
 
         <!-- Results, with each row's colour matching that player's line -->
         <StackPanel Grid.Column="1" Width="360" Spacing="12" Margin="16,0,0,0" VerticalAlignment="Center">
-            <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="Bold"/>
-            <ItemsControl ItemsSource="{Binding Rows}">
+            <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="Bold"
+                       HorizontalAlignment="Left" views:Motion.PopDelay="0"/>
+            <!-- Rows slide in one by one while the routes race on the map -->
+            <ItemsControl ItemsSource="{Binding Rows}" views:Motion.Stagger="110" views:Motion.StaggerStart="350">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ResultRow">
                         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,3">
@@ -33,12 +35,21 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <!-- Appears as the best route is revealed on the map (see RouteMap's reveal) -->
+            <StackPanel Orientation="Horizontal" Spacing="8" views:Motion.EnterDelay="1800">
                 <Border Width="14" Height="14" CornerRadius="7" VerticalAlignment="Center"
                         Background="{Binding BestRouteSwatch}"/>
                 <TextBlock Text="{Binding BestRoute}" Opacity="0.8" TextWrapping="Wrap"/>
             </StackPanel>
-            <TextBlock Text="{Binding TimeLeft}" FontSize="18" Margin="0,8,0,0"/>
+            <StackPanel Spacing="6" Margin="0,8,0,0" views:Motion.EnterDelay="2200">
+                <TextBlock Text="{Binding TimeLeft}" FontSize="18"/>
+                <ProgressBar Minimum="0" Maximum="1" Value="{Binding TimeFraction}" Foreground="#4FC3F7"
+                             Height="4" MinHeight="4">
+                    <ProgressBar.Transitions>
+                        <Transitions><DoubleTransition Property="Value" Duration="0:0:0.25"/></Transitions>
+                    </ProgressBar.Transitions>
+                </ProgressBar>
+            </StackPanel>
         </StackPanel>
     </Grid>
 </UserControl>
