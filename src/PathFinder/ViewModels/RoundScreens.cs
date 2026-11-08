@@ -200,26 +200,6 @@ public partial class PlayingViewModel : RoundInProgressViewModel
         ? $"{map.Name}: {map.Graph.VertexCount} intersections, {map.Graph.EdgeCount} streets"
         : "No map received";
 
-    // Placeholder buttons until the map view exists: they submit real routes on this player's copy of the map.
-    [RelayCommand] private Task SubmitBestAsync() => SubmitAsync(BestRoute());
-    [RelayCommand] private Task SubmitLongerAsync() => SubmitAsync(LongerRoute());
-
-    IReadOnlyList<int> BestRoute() => _client.Map is { } map
-        ? Network.CityMapRoundRules.BestRoute(map, _round.StartId, _round.EndId).NodeIds
-        : [];
-
-    /// <summary>The best route with a detour first: out to a neighbour of the start and back.</summary>
-    IReadOnlyList<int> LongerRoute()
-    {
-        var best = BestRoute();
-        if (_client.Map is not { } map || best.Count < 2) return best;
-        var start = map.GetIntersection(_round.StartId);
-        var neighbour = map.Graph.AdjacentEdges(start)
-            .Select(e => e.Source.Id == start.Id ? e.Target.Id : e.Source.Id)
-            .FirstOrDefault(id => id != best[1], best[1]);
-        return [_round.StartId, neighbour, .. best];
-    }
-
     async Task SubmitAsync(IReadOnlyList<int> nodeIds)
     {
         if (_finished || Clock.IsUp) return;
