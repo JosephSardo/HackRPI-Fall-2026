@@ -102,20 +102,51 @@ public static class Compass
     }
 
     /// <summary>
-    /// Which way the driver faces at the start of a round, before they've driven anywhere: along the
-    /// start's lowest-ID street, so the host and every client agree without sending anything extra.
-    /// 0 (north) if the start has no streets.
-    /// TODO (navigator mode): maybe face the "wrong" way on purpose, or pick at random on the host
-    /// (it already sends the heading in the round's first DriverMoved).
+    /// Which way the driver faces at the start of a round, before they've driven anywhere: along one of
+    /// the start's streets, picked with <paramref name="random"/> (or the lowest-ID street without one).
+    /// Only the host calls this with a Random; it sends the result in NavigatorRound and the round's first
+    /// DriverMoved, so every client shows the same heading. 0 (north) if the start has no streets.
     /// </summary>
-    public static double InitialHeading(CityMap map, int startId)
+    public static double InitialHeading(CityMap map, int startId, Random? random = null)
     {
         var start = map.GetIntersection(startId);
-        var first = map.Graph.AdjacentEdges(start).OrderBy(e => e.Tag.Id).FirstOrDefault();
-        if (first is null) return 0;
-        var other = first.Source.Id == startId ? first.Target : first.Source;
+        var streets = map.Graph.AdjacentEdges(start).OrderBy(e => e.Tag.Id).ToList();
+        if (streets.Count == 0) return 0;
+        var street = streets[random?.Next(streets.Count) ?? 0];
+        var other = street.Source.Id == startId ? street.Target : street.Source;
         return Bearing(start, other);
     }
+
+    /// <summary>
+    /// A rough direction in words for a relative angle, in eight 45° slices:
+    /// "ahead", "ahead-right", "right", "behind-right", "behind", "behind-left", "left", "ahead-left".
+    /// </summary>
+    public static string RoughDirection(double relative)
+    {
+        var a = Math.Abs(relative);
+        var side = relative < 0 ? "left" : "right";
+        return a switch
+        {
+            <= 22.5 => "ahead",
+            < 67.5 => $"ahead-{side}",
+            <= 112.5 => side,
+            < 157.5 => $"behind-{side}",
+            _ => "behind",
+        };
+    }
+
+    /// <summary>A distance rounded for talking about, e.g. 37 -> "~40 m", 412 -> "~400 m", 1460 -> "~1.5 km".</summary>
+    public static string RoughDistance(double metres) => metres switch
+    {
+        < 15 => "right here",
+        < 100 => $"~{Math.Round(metres / 10) * 10:0} m",
+        < 1000 => $"~{Math.Round(metres / 50) * 50:0} m",
+        _ => $"~{metres / 1000:0.0} km",
+    };
+
+    /// <summary>Straight-line distance in metres between two intersections (map X/Y are metres).</summary>
+    public static double Distance(Intersection from, Intersection to) =>
+        Math.Sqrt((to.X - from.X) * (to.X - from.X) + (to.Y - from.Y) * (to.Y - from.Y));
 
     /// <summary>One way out of an intersection, as the driver sees it.</summary>
     public sealed record Exit(int NodeId, double Relative, double Length, string Label);

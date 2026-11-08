@@ -6,7 +6,7 @@ namespace PathFinder.Network;
 public static class Protocol
 {
     /// <summary>Bump when messages change, so mismatched builds are turned away instead of misbehaving.</summary>
-    public const int Version = 7;
+    public const int Version = 8;
     public const int DefaultPort = 5050;
     public const int MinPlayers = 2;
     /// <summary>
@@ -53,6 +53,9 @@ public sealed record PlayerTotal(string PlayerId, string Name, double TotalScore
 [JsonDerivedType(typeof(ChooseRoleMessage), "ChooseRole")]
 [JsonDerivedType(typeof(DriveToMessage), "DriveTo")]
 [JsonDerivedType(typeof(DriverMovedMessage), "DriverMoved")]
+[JsonDerivedType(typeof(NavigatorRoundMessage), "NavigatorRound")]
+[JsonDerivedType(typeof(DriveRejectedMessage), "DriveRejected")]
+[JsonDerivedType(typeof(NavigatorScoreMessage), "NavigatorScore")]
 public abstract record NetMessage;
 
 // Client -> host

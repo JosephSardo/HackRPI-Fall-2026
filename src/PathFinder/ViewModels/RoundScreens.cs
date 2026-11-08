@@ -275,10 +275,13 @@ public partial class ResultsViewModel : CountdownViewModel
         ["#FFC83D", "#4FC3F7", "#BA68C8", "#FF8A65", "#F06292", "#AED581", "#90A4AE", "#FFD180"];
     const string BestRouteColor = "#3DDC84";
 
-    public ResultsViewModel(RoundResultsMessage results, string? myId, bool isLastRound, CityMap? map = null)
+    /// <param name="scoreBreakdown">Optional extra lines on how the score was worked out (Cloud Navigator); null hides them.</param>
+    public ResultsViewModel(RoundResultsMessage results, string? myId, bool isLastRound, CityMap? map = null,
+                            string? scoreBreakdown = null)
         : base(new RoundClock(TimeSpan.FromSeconds(results.SecondsUntilNext)))
     {
         _isLastRound = isLastRound;
+        ScoreBreakdown = scoreBreakdown;
         Title = $"Round {results.RoundNumber} results";
         Map = map;
 
@@ -325,6 +328,7 @@ public partial class ResultsViewModel : CountdownViewModel
     }
 
     public string Title { get; }
+    public string? ScoreBreakdown { get; }
     public IReadOnlyList<ResultRow> Rows { get; }
     public string BestRoute { get; }
     public IBrush BestRouteSwatch { get; } = Brush.Parse(BestRouteColor);

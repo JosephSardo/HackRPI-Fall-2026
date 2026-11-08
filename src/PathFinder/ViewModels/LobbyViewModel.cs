@@ -272,6 +272,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         client.RoundResultsReady += OnRoundResults;
         client.MatchOver += OnMatchOver;
         client.DriverMoved += OnDriverMoved;
+        client.DriveRejected += OnDriveRejected;
         client.Disconnected += OnDisconnected;
         _client = client;
         await client.ConnectAsync(address, port, PlayerName.Trim(), hostKey);
@@ -335,7 +336,11 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
 
     void OnRoundResults(RoundResultsMessage results)
     {
-        Show(new ResultsViewModel(results, _client?.PlayerId, isLastRound: results.RoundNumber >= _totalRounds, map: _client?.Map));
+        var breakdown = _matchMode == GameMode.Navigator && _client?.NavigatorScore is { } score && score.RoundNumber == results.RoundNumber
+            ? NavigatorScreens.ScoreBreakdown(score)
+            : null;
+        Show(new ResultsViewModel(results, _client?.PlayerId, isLastRound: results.RoundNumber >= _totalRounds, map: _client?.Map,
+                                  scoreBreakdown: breakdown));
     }
 
     void OnMatchOver(MatchOverMessage over)
@@ -352,6 +357,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     }
 
     void OnDriverMoved(DriverMovedMessage moved) => (_screen as IFollowsDriver)?.OnDriverMoved(moved);
+    void OnDriveRejected(DriveRejectedMessage rejected) => (_screen as IFollowsDriver)?.OnDriveRejected(rejected);
 
     void OnDisconnected(string reason) => Fail(reason);
 
@@ -379,6 +385,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
             _client.RoundResultsReady -= OnRoundResults;
             _client.MatchOver -= OnMatchOver;
             _client.DriverMoved -= OnDriverMoved;
+            _client.DriveRejected -= OnDriveRejected;
             _client.Disconnected -= OnDisconnected;
             _client.Dispose();
             _client = null;

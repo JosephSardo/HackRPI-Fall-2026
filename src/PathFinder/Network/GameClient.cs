@@ -51,6 +51,17 @@ public sealed class GameClient : IDisposable
     public event Action<MatchOverMessage>? MatchOver;
     /// <summary>Cloud Navigator: the driver moved (also sent once at the start of each round).</summary>
     public event Action<DriverMovedMessage>? DriverMoved;
+    /// <summary>Cloud Navigator, driver only: the host refused our last DriveTo (the position is unchanged).</summary>
+    public event Action<DriveRejectedMessage>? DriveRejected;
+
+    /// <summary>
+    /// Cloud Navigator: who drives and navigates the latest round, and its starting heading. Set just
+    /// before RoundStarted fires for that round. Null before the first navigator round.
+    /// </summary>
+    public NavigatorRoundMessage? NavigatorRound { get; private set; }
+
+    /// <summary>Cloud Navigator: how the latest round was scored. Set just before RoundResultsReady fires for that round.</summary>
+    public NavigatorScoreMessage? NavigatorScore { get; private set; }
     /// <summary>Connection ended unexpectedly. The argument is a reason that can be shown to the player.</summary>
     public event Action<string>? Disconnected;
 
@@ -205,6 +216,15 @@ public sealed class GameClient : IDisposable
                         break;
                     case DriverMovedMessage moved:
                         Raise(() => DriverMoved?.Invoke(moved));
+                        break;
+                    case NavigatorRoundMessage navigatorRound: // arrives just before its RoundStart
+                        Raise(() => NavigatorRound = navigatorRound);
+                        break;
+                    case DriveRejectedMessage rejected:
+                        Raise(() => DriveRejected?.Invoke(rejected));
+                        break;
+                    case NavigatorScoreMessage score: // arrives just before its RoundResults
+                        Raise(() => NavigatorScore = score);
                         break;
                     case MatchOverMessage over:
                         Raise(() =>
