@@ -103,27 +103,42 @@ public partial class PlayingView : UserControl
 
         for(int i = 0; i < segmentCount; i++)
         {
-            double distance = Math.Min(
-                i * StreetSegmentSize + StreetSegmentSize / 2, 
-                length
+            double segmentStart = i * StreetSegmentSize;
+            double segmentLength = Math.Min(
+                StreetSegmentSize,
+                length - segmentStart
             );
+            double distance = segmentStart + segmentLength / 2;
 
             double x = startPoint.X + Math.Cos(angleRadians) * distance;
             double y = startPoint.Y + Math.Sin(angleRadians) * distance;
+
+            Canvas segmentCanvas = new()
+            {
+                Width = segmentLength,
+                Height = StreetSegmentSize,
+                ClipToBounds = true,
+                RenderTransform = new RotateTransform(angleDegrees),
+                RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative)
+            };
 
             Image image = new()
             {
                 Source = _streetImage,
                 Width = StreetSegmentSize,
-                Height = StreetSegmentSize,
-                RenderTransform = new RotateTransform(angleDegrees),
-                RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative)
+                Height = StreetSegmentSize
             };
 
-            Canvas.SetLeft(image, x - StreetSegmentSize / 2);
-            Canvas.SetTop(image, y - StreetSegmentSize / 2);
+            // Position the full image inside the smaller canvas.
+            Canvas.SetLeft(image, 0);
+            Canvas.SetTop(image, 0);
 
-            MapCanvas.Children.Add(image);
+            segmentCanvas.Children.Add(image);
+
+            Canvas.SetLeft(segmentCanvas, x - segmentLength / 2);
+            Canvas.SetTop(segmentCanvas, y - StreetSegmentSize / 2);
+
+            MapCanvas.Children.Add(segmentCanvas);
         }
     }
 
