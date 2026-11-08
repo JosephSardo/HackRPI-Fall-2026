@@ -286,7 +286,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
 
     void OnRoundResults(RoundResultsMessage results)
     {
-        Show(new ResultsViewModel(results, _client?.PlayerId, isLastRound: results.RoundNumber >= _totalRounds));
+        Show(new ResultsViewModel(results, _client?.PlayerId, isLastRound: results.RoundNumber >= _totalRounds, map: _client?.Map));
     }
 
     void OnMatchOver(MatchOverMessage over)
