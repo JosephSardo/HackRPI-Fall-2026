@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PathFinder.Models;
 using PathFinder.Network;
 using PathFinder.Services;
 
@@ -88,10 +89,104 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     /// </summary>
     public GameService Game { get; }
 
-    /// <summary>Call after changing the route so the Submit button updates.</summary>
-    public void RouteChanged() => OnPropertyChanged(nameof(CanSubmitRoute));
+    /// <summary>Call after changing the route so the Submit button, summary and map update.</summary>
+    public void RouteChanged()
+    {
+        OnPropertyChanged(nameof(CanSubmitRoute));
+        OnPropertyChanged(nameof(RouteSummary));
+        RouteUpdated?.Invoke();
+    }
 
     public bool CanSubmitRoute => Game.PathIsComplete() && !_finished;
+
+    // ---- building the route by clicking streets on the map
+
+    /// <summary>Raised whenever the route changes, so the map can redraw its highlight.</summary>
+    public event Action? RouteUpdated;
+
+    public int StartId => _round.StartId;
+    public int EndId => _round.EndId;
+
+    /// <summary>The route so far, as intersection IDs from the start.</summary>
+    public IReadOnlyList<int> RouteNodeIds => Game.GetPlayerPath();
+
+    public string RouteSummary => RouteNodeIds.Count < 2
+        ? "Click a street touching the start to begin your route."
+        : $"Your route: {RouteNodeIds.Count - 1} streets, {Game.PathLength():0} m" +
+          (Game.PathIsComplete() ? " (destination reached)" : "");
+
+    /// <summary>Why the last click did nothing (or what to do next); null when there's nothing to say.</summary>
+    [ObservableProperty] private string? _routeHint;
+
+    /// <summary>
+    /// A street was clicked: clicking your last street again takes it back; clicking a street that
+    /// touches the end of your route extends it; anything else explains why not.
+    /// </summary>
+    public void ClickStreet(Street street)
+    {
+        if (_finished) return;
+        var path = Game.GetPlayerPath();
+
+        if (path.Count >= 2 && Joins(street, path[^2], path[^1]))
+        {
+            Game.RemoveStreetFromRoute(street);
+            RouteHint = null;
+        }
+        else if (Game.PathIsComplete())
+        {
+            RouteHint = "You've reached the destination. Submit, or click your last street to undo it.";
+            return;
+        }
+        else if (Game.AddStreetToRoute(street))
+        {
+            RouteHint = Game.PathIsComplete() ? "Destination reached! Submit your route." : null;
+        }
+        else
+        {
+            RouteHint = path.Count < 2
+                ? "Start from the green intersection: pick a street that touches it."
+                : "That street doesn't connect to the end of your route (the yellow ring).";
+            return;
+        }
+        RouteChanged();
+    }
+
+    /// <summary>True if clicking this street would change the route (used for the hover highlight).</summary>
+    public bool CanClick(Street street)
+    {
+        if (_finished) return false;
+        var path = Game.GetPlayerPath();
+        if (path.Count >= 2 && Joins(street, path[^2], path[^1])) return true; // undo
+        if (Game.PathIsComplete()) return false;
+        return street.Start.Id == path[^1] || street.End.Id == path[^1];
+    }
+
+    [RelayCommand]
+    private void UndoStreet()
+    {
+        var path = Game.GetPlayerPath();
+        if (_finished || path.Count < 2) return;
+        if (StreetBetween(path[^2], path[^1]) is { } last) ClickStreet(last);
+    }
+
+    [RelayCommand]
+    private void ClearRoute()
+    {
+        if (_finished) return;
+        Game.SetStart(_round.StartId); // resets the route
+        Game.SetEnd(_round.EndId);
+        RouteHint = null;
+        RouteChanged();
+    }
+
+    static bool Joins(Street street, int a, int b) =>
+        (street.Start.Id == a && street.End.Id == b) || (street.Start.Id == b && street.End.Id == a);
+
+    Street? StreetBetween(int a, int b)
+    {
+        var map = Game.CityMap;
+        return map.Graph.TryGetEdge(map.GetIntersection(a), map.GetIntersection(b), out var edge) ? edge.Tag : null;
+    }
 
     /// <summary>Submit the route built on the map (the real Submit button for the map UI).</summary>
     [RelayCommand] private Task SubmitRouteAsync() => CanSubmitRoute ? SubmitAsync(Game.GetPlayerPath()) : Task.CompletedTask;
