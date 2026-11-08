@@ -9,7 +9,8 @@
         Icon="/Assets/avalonia-logo.ico"
         Title="PathFinder" Width="600" Height="700"
         Background="#1d1945"
-        TextElement.Foreground="#d3eaff">
+        TextElement.Foreground="#d3eaff"
+        WindowState="Maximized">
 
     <Window.Styles>
         <Style Selector="Button">
