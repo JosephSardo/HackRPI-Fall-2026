@@ -84,6 +84,8 @@
                 <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LocationError}" FontSize="12" Foreground="#C04000"
                            TextWrapping="Wrap" Margin="0,4,0,0"
                            IsVisible="{Binding LocationError, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                <TextBlock Grid.Row="4" Text="Radius" VerticalAlignment="Center" Margin="0,12,0,0" />
+                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding RadiusMeters}" PlaceholderText="Radius"/>
             </Grid>
 
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">

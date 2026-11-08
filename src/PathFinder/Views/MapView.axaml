@@ -42,9 +42,23 @@
             <Button Classes="map" Content="⌂" Command="{Binding ShowWholeWorldCommand}" ToolTip.Tip="Whole world (Home)"/>
         </StackPanel>
 
-        <!-- Top center: instructions while picking a location -->
+        <!-- Top center: instructions and the area radius while picking a location. The red circle
+             shows that radius on the map: it follows the pointer until a point is chosen, then stays on it. -->
         <Border Classes="overlay" HorizontalAlignment="Center" VerticalAlignment="Top" IsVisible="{Binding IsPicking}">
-            <TextBlock Text="Double-click the map to choose the game's location"/>
+            <StackPanel Spacing="2">
+                <TextBlock Text="Double-click the map to choose the game's location" HorizontalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                    <TextBlock Text="Radius" VerticalAlignment="Center"/>
+                    <Slider Width="220" VerticalAlignment="Center"
+                            Minimum="{x:Static vm:MapViewModel.MinRadiusMeters}"
+                            Maximum="{x:Static vm:MapViewModel.MaxRadiusMeters}"
+                            TickFrequency="50" IsSnapToTickEnabled="True"
+                            Value="{Binding RadiusMeters}"
+                            ToolTip.Tip="How far around the chosen point streets are loaded"/>
+                    <TextBlock Text="{Binding RadiusText}" VerticalAlignment="Center" MinWidth="56"
+                               FontFamily="Consolas, monospace"/>
+                </StackPanel>
+            </StackPanel>
         </Border>
 
         <!-- Bottom center: the chosen point and OK, once something is chosen. Raised above the

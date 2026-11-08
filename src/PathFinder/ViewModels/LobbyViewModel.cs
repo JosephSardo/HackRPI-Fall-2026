@@ -42,6 +42,9 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     [NotifyPropertyChangedFor(nameof(GameLocation), nameof(LocationError), nameof(CanStartMatch))]
     private string _location = "";
 
+    /// <summary>How far around <see cref="Location"/> the map is loaded, in meters. Set from the map picker's slider.</summary>
+    [ObservableProperty] private double _radiusMeters = HostMapLoader.DefaultRadiusMeters;
+
     /// <summary>The parsed <see cref="Location"/>, or null if it's empty or invalid.</summary>
     public GeoPoint? GameLocation => GeoPoint.TryParse(Location, out var point) ? point : null;
 
@@ -179,7 +182,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         {
             // The map is built around the lobby's Location (or loaded from a saved copy), fresh for every match.
             var at = GameLocation ?? new GeoPoint(HostMapLoader.DefaultLatitude, HostMapLoader.DefaultLongitude);
-            var result = await HostMapLoader.LoadAsync(at.Latitude, at.Longitude);
+            var result = await HostMapLoader.LoadAsync(at.Latitude, at.Longitude, RadiusMeters);
             if (_client is null || _host is null) return; // left the lobby while loading
 
             var map = result.Map;
@@ -208,9 +211,11 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
             back: () => showScreen(null),
             start: GameLocation,
             startZoom: 15,
-            confirm: point =>
+            radiusMeters: RadiusMeters,
+            confirm: (point, radius) =>
             {
                 Location = point.ToCoordinateString();
+                RadiusMeters = radius;
                 showScreen(null);
             }));
 
