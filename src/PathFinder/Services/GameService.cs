@@ -22,6 +22,15 @@ public class GameService
         Route = new(1);
     }
 
+    //multiplayer: wraps a map that's already built, i.e. this player's copy of the host's map
+    //(GameClient.Map). Don't rebuild it from raw coordinates: IDs could differ from the host's,
+    //and then paths and scores silently break. Start/end come from each RoundStart via SetStart/SetEnd.
+    public GameService(CityMap map)
+    {
+        CityMap = map;
+        Route = new(map.StartId);
+    }
+
     //sets the starting node for the map. Also resets the PlayerRoute object
     public void SetStart(int id)
     {
