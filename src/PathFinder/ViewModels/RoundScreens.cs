@@ -66,13 +66,18 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     readonly Action<bool> _done; // true if time ran out before submitting
     bool _finished;
 
-    public PlayingViewModel(GameClient client, RoundStartMessage round, RoundClock clock, string submissions, Action<bool> done)
+    public PlayingViewModel(GameClient client, RoundStartMessage round, RoundClock clock, string submissions, Action<bool> done,
+                            string? hostWarning = null)
         : base(clock, submissions)
     {
         _client = client;
         _round = round;
         _done = done;
+        HostWarning = hostWarning;
     }
+
+    /// <summary>Host only: why this match is on the test map (e.g. the real map took too long). Null otherwise.</summary>
+    public string? HostWarning { get; }
 
     public string Title => $"Round {_round.RoundNumber} of {_round.TotalRounds}";
     public string Route => $"Get from intersection {_round.StartId} to intersection {_round.EndId}";

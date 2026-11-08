@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PathFinder.Mapping;
@@ -86,7 +87,12 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     [NotifyPropertyChangedFor(nameof(CanStartMatch), nameof(StartButtonText))]
     private bool _isLoadingMap;
 
-    public string StartButtonText => IsLoadingMap ? "Loading map..." : "Start match";
+    public string StartButtonText => IsLoadingMap ? $"Loading map... {LoadingSeconds}s" : "Start match";
+
+    /// <summary>Seconds spent loading so far, so a slow download reads as progress rather than a hang.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StartButtonText))]
+    private int _loadingSeconds;
     public bool NeedsMorePlayers => IsHost && Players.Count < Protocol.MinPlayers;
 
     public ObservableCollection<string> Players { get; } = [];
@@ -163,20 +169,31 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     {
         if (_client is null || _host is null) return;
         IsLoadingMap = true;
+        LoadingSeconds = 0;
+        var started = DateTime.Now;
+        var ticker = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+        ticker.Tick += (_, _) => LoadingSeconds = (int)(DateTime.Now - started).TotalSeconds;
+        ticker.Start();
         try
         {
-            // The map is built around the lobby's Location, fresh for every match.
+            // The map is built around the lobby's Location (or loaded from a saved copy), fresh for every match.
             var at = GameLocation ?? new GeoPoint(HostMapLoader.DefaultLatitude, HostMapLoader.DefaultLongitude);
-            var (map, warning) = await HostMapLoader.LoadAsync(at.Latitude, at.Longitude);
+            var result = await HostMapLoader.LoadAsync(at.Latitude, at.Longitude);
             if (_client is null || _host is null) return; // left the lobby while loading
 
+            var map = result.Map;
             _host.UseMap(map);
-            MapInfo = $"Map: {map.Name} ({map.Graph.VertexCount} intersections, {map.Graph.EdgeCount} streets) around {at.ToCoordinateString()}";
-            MapWarning = warning;
+            MapInfo = $"Map: {map.Name} ({map.Graph.VertexCount} intersections, {map.Graph.EdgeCount} streets) " +
+                      $"around {at.ToCoordinateString()}{(result.FromCache ? " (saved copy)" : "")}";
+            MapWarning = result.Warning;
             await _client.StartMatchAsync((int)(Rounds ?? Protocol.DefaultRounds), (int)(RoundSeconds ?? Protocol.DefaultRoundSeconds));
         }
         catch (Exception ex) { Status = $"Couldn't start the match: {ex.Message}"; }
-        finally { IsLoadingMap = false; }
+        finally
+        {
+            ticker.Stop();
+            IsLoadingMap = false;
+        }
     }
 
     /// <summary>
@@ -243,7 +260,8 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         _submissions = "";
         var clock = _clock;
         Show(new PlayingViewModel(_client, start, clock, _submissions,
-            done: timedOut => Show(new WaitingViewModel(clock, _submissions, timedOut))));
+            done: timedOut => Show(new WaitingViewModel(clock, _submissions, timedOut)),
+            hostWarning: IsHost ? MapWarning : null));
     }
 
     void OnPlayerSubmitted(PlayerSubmittedMessage submitted)

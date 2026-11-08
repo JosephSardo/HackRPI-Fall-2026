@@ -18,6 +18,8 @@
         <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="Bold"/>
         <TextBlock Text="{Binding Route}"/>
         <TextBlock Text="{Binding MapInfo}" Opacity="0.7"/>
+        <TextBlock Text="{Binding HostWarning}" TextWrapping="Wrap" Foreground="#E0A030"
+                   IsVisible="{Binding HostWarning, Converter={x:Static ObjectConverters.IsNotNull}}"/>
         <TextBlock Text="{Binding TimeLeft}" FontSize="20"/>
         <TextBlock Text="{Binding Submissions}" Opacity="0.7"/>
         <TextBlock Text="The map goes here. For now, submit a real route on the map with a button:" Margin="0,12,0,0"/>
