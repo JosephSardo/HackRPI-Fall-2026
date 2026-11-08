@@ -68,14 +68,18 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     bool _finished;
 
     public PlayingViewModel(GameClient client, GameService game, RoundStartMessage round, RoundClock clock,
-                            string submissions, Action<bool> done)
+                            string submissions, Action<bool> done, string? hostWarning = null)
         : base(clock, submissions)
     {
         _client = client;
         Game = game;
         _round = round;
         _done = done;
+        HostWarning = hostWarning;
     }
+
+    /// <summary>Host only: why this match is on the test map (e.g. the real map took too long). Null otherwise.</summary>
+    public string? HostWarning { get; }
 
     /// <summary>
     /// This player's game for the round: the map to draw (<c>Game.CityMap</c>), start/end already set,
