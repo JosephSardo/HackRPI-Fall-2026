@@ -16,7 +16,7 @@
     <!-- Placeholder layout: restyle freely; bindings are the contract. -->
     <Grid Margin="16" RowDefinitions="Auto,*,Auto" ClipToBounds="True">
         <!-- Load background image -->
-        <Image Source="avares://PathFinder/Assets/placeholderbg.png"
+        <Image Source="avares://PathFinder/Assets/night-sky-bg.png"
                Grid.Row="0"
                Grid.RowSpan="3"
                Stretch="UniformToFill"/>
