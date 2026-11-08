@@ -58,13 +58,6 @@
 
             <Button Content="Clear"
                     Command="{Binding ClearRouteCommand}"/>
-
-            <!-- Placeholders from before street selection existed; remove before the demo. -->
-            <Button Content="Submit best route"
-                    Command="{Binding SubmitBestCommand}"/>
-
-            <Button Content="Submit a longer route"
-                    Command="{Binding SubmitLongerCommand}"/>
         </StackPanel>
 
     </Grid>
