@@ -294,8 +294,9 @@ public partial class ResultsViewModel : CountdownViewModel
     const string BestRouteColor = "#3DDC84";
 
     /// <param name="scoreBreakdown">Optional extra lines on how the score was worked out (Cloud Navigator); null hides them.</param>
+    /// <param name="team">Cloud Navigator: one team, not rivals. Shows a single team row and the team's trail even if it didn't arrive.</param>
     public ResultsViewModel(RoundResultsMessage results, string? myId, bool isLastRound, CityMap? map = null,
-                            string? scoreBreakdown = null)
+                            string? scoreBreakdown = null, bool team = false)
         : base(new RoundClock(TimeSpan.FromSeconds(results.SecondsUntilNext)))
     {
         _isLastRound = isLastRound;
@@ -322,8 +323,34 @@ public partial class ResultsViewModel : CountdownViewModel
             .OrderBy(r => r.PlayerId == myId)
             .Select(r => new Views.RouteLine(r.NodeIds, colorOf[r.PlayerId], r.PlayerId == myId ? 6 : 4,
                                              Dashed: r.PlayerId != myId)));
+        if (team) ShowAsTeam(results, myId, routes);
         MapRoutes = routes;
         Tick();
+    }
+
+    /// <summary>
+    /// Cloud Navigator: the team (the players the host gave the driven path to) as one row, anyone else as
+    /// watching, and the path actually driven drawn on the map even when time ran out before arriving.
+    /// </summary>
+    void ShowAsTeam(RoundResultsMessage results, string? myId, List<Views.RouteLine> routes)
+    {
+        const string TrailColor = "#FFC83D";
+        var members = results.Results.Where(r => r.NodeIds.Count > 0).ToList();
+        if (members.Count == 0) members = results.Results.Where(r => r.Rank == 1).ToList();
+        string Name(RoundResult r) => r.Name + (r.PlayerId == myId ? " (you)" : "");
+        var score = members.Count > 0 ? members.Max(m => m.Score) : 0;
+        var rows = new List<ResultRow>
+        {
+            new($"Team {string.Join(" & ", members.Select(Name))}:  {score:0.#} points", Brush.Parse(TrailColor)),
+        };
+        rows.AddRange(results.Results.Except(members).Select(r => new ResultRow($"{Name(r)}  watching", Brush.Parse("#90A4AE"))));
+        Rows = rows;
+
+        routes.RemoveRange(1, routes.Count - 1); // drop the per-player lines: it's one shared path
+        if (members.Select(m => m.NodeIds).FirstOrDefault(p => p.Count >= 2) is { } trail)
+        {
+            routes.Add(new Views.RouteLine(trail, TrailColor, 6)); // alone after the best route, so it isn't nudged sideways
+        }
     }
 
     /// <summary>" via Congress Street, 8th Street": the route's street names in order, or "" if none are known.</summary>
@@ -347,7 +374,7 @@ public partial class ResultsViewModel : CountdownViewModel
 
     public string Title { get; }
     public string? ScoreBreakdown { get; }
-    public IReadOnlyList<ResultRow> Rows { get; }
+    public IReadOnlyList<ResultRow> Rows { get; private set; }
     public string BestRoute { get; }
     public IBrush BestRouteSwatch { get; } = Brush.Parse(BestRouteColor);
 
@@ -366,13 +393,26 @@ public partial class ResultsViewModel : CountdownViewModel
 public sealed record ResultRow(string Text, IBrush Color);
 
 /// <summary>Final standings, then back to the lobby.</summary>
-public partial class SummaryViewModel(MatchOverMessage over, string? myId, Action backToLobby) : ViewModelBase
+/// <param name="team">Cloud Navigator: the players share one score, so show it as a team result, not a tie.</param>
+public partial class SummaryViewModel(MatchOverMessage over, string? myId, Action backToLobby, bool team = false) : ViewModelBase
 {
-    public IReadOnlyList<string> Rows { get; } = over.Standings
-        .Select(s => $"#{s.Rank}  {s.Name}{(s.PlayerId == myId ? " (you)" : "")}  {s.TotalScore:0.#} points")
-        .ToList();
+    public IReadOnlyList<string> Rows { get; } = team
+        ? [$"Team {string.Join(" & ", TeamOf(over.Standings).Select(s => s.Name + (s.PlayerId == myId ? " (you)" : "")))}:  " +
+           $"{TeamOf(over.Standings).FirstOrDefault()?.TotalScore ?? 0:0.#} points"]
+        : over.Standings
+            .Select(s => $"#{s.Rank}  {s.Name}{(s.PlayerId == myId ? " (you)" : "")}  {s.TotalScore:0.#} points")
+            .ToList();
 
-    public string Winner { get; } = Headline(over.Standings, myId);
+    public string Winner { get; } = team ? TeamHeadline(over.Standings) : Headline(over.Standings, myId);
+
+    /// <summary>The team: everyone on the top score (both team members always get the same score).</summary>
+    static List<PlayerTotal> TeamOf(IReadOnlyList<PlayerTotal> standings) => standings.Where(s => s.Rank == 1).ToList();
+
+    static string TeamHeadline(IReadOnlyList<PlayerTotal> standings)
+    {
+        var total = TeamOf(standings).FirstOrDefault()?.TotalScore ?? 0;
+        return total <= 0 ? "Lost in the clouds... no arrivals this time" : $"Team score: {total:0.#} points!";
+    }
 
     static string Headline(IReadOnlyList<PlayerTotal> standings, string? myId)
     {

@@ -268,7 +268,7 @@ public partial class NavigatorViewModel : CountdownViewModel, IFollowsDriver
     public string Title => $"Round {_round.RoundNumber} of {_round.TotalRounds}: {DriverName} is driving";
     public string Instructions => IsSpectator
         ? "Watch the driver (blue arrow) try to reach the red ring."
-        : $"Talk {DriverName} to the red ring. They can't see the map, only the exits below, numbered left to right " +
+        : $"Talk {DriverName} to the red ring. They can't see the map, only the exits listed above, numbered left to right " +
           "the way they're facing: \"take exit 2\", \"turn right\", \"straight on\".";
 
     public void OnDriverMoved(DriverMovedMessage moved)

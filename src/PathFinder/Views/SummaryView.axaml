@@ -16,7 +16,7 @@
     
     <!-- Placeholder layout: restyle freely; bindings are the contract. -->
     <StackPanel Width="460" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <TextBlock Text="{Binding Winner}" FontSize="28" FontWeight="Bold"
+        <TextBlock Text="{Binding Winner}" FontSize="28" FontWeight="Bold" TextWrapping="Wrap"
                    HorizontalAlignment="Left" views:Motion.PopDelay="150"/>
         <TextBlock Text="Final standings" FontWeight="SemiBold" views:Motion.EnterDelay="450"/>
         <ItemsControl ItemsSource="{Binding Rows}" views:Motion.Stagger="120" views:Motion.StaggerStart="550">

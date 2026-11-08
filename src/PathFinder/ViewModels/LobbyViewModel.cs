@@ -340,14 +340,14 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
             ? NavigatorScreens.ScoreBreakdown(score)
             : null;
         Show(new ResultsViewModel(results, _client?.PlayerId, isLastRound: results.RoundNumber >= _totalRounds, map: _client?.Map,
-                                  scoreBreakdown: breakdown));
+                                  scoreBreakdown: breakdown, team: _matchMode == GameMode.Navigator));
     }
 
     void OnMatchOver(MatchOverMessage over)
     {
         MatchStarted = false; // host can start another match from the lobby
         _game = null;
-        Show(new SummaryViewModel(over, _client?.PlayerId, backToLobby: () => Show(null)));
+        Show(new SummaryViewModel(over, _client?.PlayerId, backToLobby: () => Show(null), team: _matchMode == GameMode.Navigator));
     }
 
     void Show(ViewModelBase? screen)

@@ -1,14 +1,9 @@
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Layout;
 
 namespace PathFinder.Views;
 
 public partial class NavigatorView : UserControl
 {
-    /// <summary>Below this width the panel moves under the map, so the map keeps the full width.</summary>
-    const double WideLayoutWidth = 860;
-
     bool? _wide;
 
     public NavigatorView()
@@ -19,16 +14,7 @@ public partial class NavigatorView : UserControl
     protected override void OnSizeChanged(SizeChangedEventArgs e)
     {
         base.OnSizeChanged(e);
-        var wide = e.NewSize.Width >= WideLayoutWidth;
-        if (wide == _wide) return;
-        _wide = wide;
-
-        Root.ColumnDefinitions = wide ? new ColumnDefinitions("*,340") : new ColumnDefinitions("*");
-        Root.RowDefinitions = wide ? new RowDefinitions("*") : new RowDefinitions("*,Auto");
-        Grid.SetColumn(Panel, wide ? 1 : 0);
-        Grid.SetRow(Panel, wide ? 0 : 1);
-        Panel.Margin = wide ? new Thickness(16, 0, 0, 0) : new Thickness(0, 12, 0, 0);
-        Panel.VerticalAlignment = wide ? VerticalAlignment.Center : VerticalAlignment.Stretch;
-        Panel.MaxHeight = wide ? double.PositiveInfinity : 300;
+        var wide = e.NewSize.Width >= ResponsiveLayout.WideWidth;
+        if (wide != _wide) _wide = ResponsiveLayout.Apply(Root, Panel, e.NewSize.Width, panelWidth: 340, narrowMaxHeight: 300);
     }
 }

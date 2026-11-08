@@ -63,8 +63,9 @@
                     views:Motion.PopDelay="0"
                     HorizontalAlignment="Left"/>
 
-            <TextBlock Text="{Binding Route}" views:Motion.EnterDelay="120"/>
-            <TextBlock Text="{Binding MapInfo}" Opacity="0.7" views:Motion.EnterDelay="170"/>
+            <!-- Right margin keeps these clear of the big countdown in the corner -->
+            <TextBlock Text="{Binding Route}" TextWrapping="Wrap" Margin="0,0,170,0" views:Motion.EnterDelay="120"/>
+            <TextBlock Text="{Binding MapInfo}" Opacity="0.7" Margin="0,0,170,0" views:Motion.EnterDelay="170"/>
             <TextBlock Text="{Binding HostWarning}" TextWrapping="Wrap" Foreground="#E0A030"
                        IsVisible="{Binding HostWarning, Converter={x:Static ObjectConverters.IsNotNull}}"/>
             <!-- Draining time bar: changes colour with the countdown -->

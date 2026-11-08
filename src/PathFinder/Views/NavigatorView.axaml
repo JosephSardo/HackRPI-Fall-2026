@@ -20,7 +20,6 @@
                 <TextBlock Text="{Binding RoleBanner}" FontSize="24" FontWeight="Bold" Foreground="#FFC83D" TextWrapping="Wrap"/>
                 <TextBlock Text="{Binding Title}" FontSize="16" TextWrapping="Wrap"/>
                 <TextBlock Text="{Binding TimeLeft}" FontSize="22" FontWeight="Bold"/>
-                <TextBlock Text="{Binding Instructions}" TextWrapping="Wrap" Opacity="0.8"/>
                 <TextBlock Text="{Binding DriverStatus}" TextWrapping="Wrap"/>
                 <TextBlock Text="{Binding Distance}" Opacity="0.8"/>
 
@@ -37,6 +36,8 @@
                         </ItemsControl>
                     </StackPanel>
                 </Border>
+                <!-- How to play: last, so the exits stay visible when the panel is short -->
+                <TextBlock Text="{Binding Instructions}" TextWrapping="Wrap" Opacity="0.8"/>
             </StackPanel>
         </ScrollViewer>
     </Grid>
