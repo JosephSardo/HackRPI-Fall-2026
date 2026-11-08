@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
@@ -84,26 +85,30 @@ public class StreetLoader : IDisposable
     /// </summary>
     private async Task<StreetNetwork> LoadNetwork(CancellationToken cancellationToken)
     {
-        Exception overpassError;
-        try
+        // The OSM API answers a small area in about a second, while public Overpass servers are often
+        // overloaded (they accept the connection and then never reply). So use the OSM API first when
+        // the area is small enough for it, and Overpass for bigger areas or when the OSM API fails.
+        var sources = new List<(string Name, Func<Task<string>> Fetch)>();
+        if (_area.RadiusMeters <= OsmApiClient.MaxRadiusMeters)
+            sources.Add(("OSM API", () => _osmApi.QueryStreetsAsync(_area, cancellationToken)));
+        sources.Add(("Overpass", () => _overpass.QueryAsync(StreetQuery.For(_area), cancellationToken)));
+
+        var errors = new List<(string Name, Exception Error)>();
+        foreach (var (name, fetch) in sources)
         {
-            return StreetNetwork.Parse(await _overpass.QueryAsync(StreetQuery.For(_area), cancellationToken));
-        }
-        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            overpassError = ex;
+            try
+            {
+                return StreetNetwork.Parse(await fetch());
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                errors.Add((name, ex));
+            }
         }
 
-        try
-        {
-            return StreetNetwork.Parse(await _osmApi.QueryStreetsAsync(_area, cancellationToken));
-        }
-        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new HttpRequestException(
-                $"Overpass: {Describe(overpassError)}; OSM API: {Describe(ex)}",
-                new AggregateException(overpassError, ex));
-        }
+        throw new HttpRequestException(
+            string.Join("; ", errors.Select(e => $"{e.Name}: {Describe(e.Error)}")),
+            new AggregateException(errors.Select(e => e.Error)));
     }
 
     /// <summary>A few words on why a download failed, short enough for the host's warning.</summary>
