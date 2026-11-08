@@ -11,8 +11,11 @@ namespace PathFinder.Views;
 /// <summary>A route to draw on a <see cref="RouteMap"/>: intersection IDs in order, plus how it looks.</summary>
 public sealed record RouteLine(IReadOnlyList<int> NodeIds, string Color, double Thickness, bool Dashed = false);
 
-/// <summary>A ring (or, if Filled, a dot) drawn on one intersection of a <see cref="RouteMap"/>.</summary>
-public sealed record MapMarker(int NodeId, string Color, double Radius = 11, bool Filled = false);
+/// <summary>
+/// A ring (or, if Filled, an outlined dot) drawn on one intersection of a <see cref="RouteMap"/>.
+/// With <paramref name="HeadingDegrees"/> (compass degrees), an arrowhead shows which way it faces.
+/// </summary>
+public sealed record MapMarker(int NodeId, string Color, double Radius = 11, bool Filled = false, double? HeadingDegrees = null);
 
 /// <summary>
 /// A simple, read-only drawing of a <see cref="CityMap"/> with routes on top: streets as thin lines,
@@ -105,7 +108,8 @@ public sealed class RouteMap : Control
                 if (TryGet(map, m.NodeId, out var at))
                 {
                     var brush = new SolidColorBrush(Color.Parse(m.Color));
-                    context.DrawEllipse(m.Filled ? brush : null, m.Filled ? null : new Pen(brush, 4), ToScreen(at), m.Radius, m.Radius);
+                    if (m.HeadingDegrees is { } heading) Arrow(context, ToScreen(at), heading, m.Radius, brush);
+                    context.DrawEllipse(m.Filled ? brush : null, m.Filled ? OutlinePen : new Pen(brush, 4), ToScreen(at), m.Radius, m.Radius);
                 }
         }
         // Start and end of the round: the ends of the first route (the best route).
@@ -114,6 +118,31 @@ public sealed class RouteMap : Control
             if (TryGet(map, first.NodeIds[0], out var start)) Ring(context, ToScreen(start), "#3DDC84");
             if (TryGet(map, first.NodeIds[^1], out var end)) Ring(context, ToScreen(end), "#FF5252");
         }
+    }
+
+    static readonly IPen OutlinePen = new Pen(new SolidColorBrush(Color.Parse("#1d1945")), 2);
+
+    /// <summary>
+    /// A filled arrowhead just in front of a marker, pointing along a compass heading (0 = up/north,
+    /// 90 = right/east), outlined so it stands out on the streets.
+    /// </summary>
+    static void Arrow(DrawingContext context, Point at, double heading, double radius, IBrush brush)
+    {
+        var rad = heading * Math.PI / 180;
+        var dir = new Point(Math.Sin(rad), -Math.Cos(rad));     // screen Y grows down
+        var side = new Point(-dir.Y, dir.X);
+        var tip = at + dir * (radius * 2.6 + 6);
+        var baseCentre = at + dir * (radius * 0.4);
+        var halfWidth = radius * 1.3 + 2;
+        var geometry = new StreamGeometry();
+        using (var g = geometry.Open())
+        {
+            g.BeginFigure(tip, isFilled: true);
+            g.LineTo(baseCentre + side * halfWidth);
+            g.LineTo(baseCentre - side * halfWidth);
+            g.EndFigure(isClosed: true);
+        }
+        context.DrawGeometry(brush, OutlinePen, geometry);
     }
 
     static void Ring(DrawingContext context, Point at, string color) =>

@@ -7,18 +7,36 @@
              Background="#1d1945"
              TextElement.Foreground="#d3eaff">
 
-    <!-- Cloud Navigator, the view from the clouds. Placeholder layout: restyle freely; bindings are the contract.
+    <!-- Cloud Navigator, the view from the clouds. Bindings are the contract.
          Read-only on purpose: the navigator can't click anything, they talk. -->
     <Grid Margin="16" ColumnDefinitions="*,Auto">
-        <!-- Whole map: the driver's trail (yellow), start (green ring), destination (red ring), driver (blue dot) -->
+        <!-- Whole map: the driver's trail (yellow), start (green ring), destination (red ring), driver (blue dot + arrow) -->
         <views:RouteMap Grid.Column="0" Map="{Binding Map}" Routes="{Binding Routes}" Markers="{Binding Markers}" MinHeight="300"/>
 
-        <StackPanel Grid.Column="1" Width="320" Spacing="12" Margin="16,0,0,0" VerticalAlignment="Center">
-            <TextBlock Text="{Binding Title}" FontSize="22" FontWeight="Bold" TextWrapping="Wrap"/>
-            <TextBlock Text="{Binding TimeLeft}" FontSize="18"/>
-            <TextBlock Text="{Binding Instructions}" TextWrapping="Wrap" Opacity="0.8"/>
-            <TextBlock Text="{Binding DriverStatus}" TextWrapping="Wrap"/>
-            <TextBlock Text="{Binding Distance}" Opacity="0.8"/>
-        </StackPanel>
+        <ScrollViewer Grid.Column="1" Width="340" Margin="16,0,0,0" VerticalAlignment="Center"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="12">
+                <TextBlock Text="{Binding RoleBanner}" FontSize="24" FontWeight="Bold" Foreground="#FFC83D" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding Title}" FontSize="16" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding TimeLeft}" FontSize="22" FontWeight="Bold"/>
+                <TextBlock Text="{Binding Instructions}" TextWrapping="Wrap" Opacity="0.8"/>
+                <TextBlock Text="{Binding DriverStatus}" TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding Distance}" Opacity="0.8"/>
+
+                <!-- What the driver's buttons say right now (read-only), left to right -->
+                <Border Background="#2a2560" CornerRadius="6" Padding="10">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="The driver's exits:" FontWeight="Bold"/>
+                        <ItemsControl ItemsSource="{Binding DriverExits}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Text="{Binding}" FontSize="16"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </UserControl>

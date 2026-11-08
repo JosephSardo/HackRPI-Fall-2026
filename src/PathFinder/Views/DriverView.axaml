@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PathFinder.ViewModels"
+             xmlns:views="using:PathFinder.Views"
              x:Class="PathFinder.Views.DriverView"
              x:DataType="vm:DriverViewModel"
              Background="#1d1945"
@@ -10,32 +11,53 @@
         <Style Selector="Button">
             <Setter Property="Foreground" Value="White" />
         </Style>
+        <Style Selector="TextBlock.hint.rejected">
+            <Setter Property="Foreground" Value="#FF8A80" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
     </UserControl.Styles>
 
-    <!-- Cloud Navigator, the driver's ground view. Placeholder layout: restyle freely; bindings are the contract.
-         Deliberately no map: just the exits, relative to the way you're facing (left to right). -->
-    <StackPanel Width="560" Spacing="16" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="Bold"/>
-        <TextBlock Text="{Binding TimeLeft}" FontSize="18"/>
-        <TextBlock Text="{Binding Distance}" Opacity="0.8"/>
-        <TextBlock Text="{Binding Hint}" TextWrapping="Wrap"/>
+    <!-- Cloud Navigator, the driver's ground view. Bindings are the contract.
+         Deliberately no map: a dashboard compass (facing is always up), the exits relative to the way
+         you're facing (numbered left to right, like the navigator sees them), and a rough destination hint. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MaxWidth="760" Spacing="14" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="{Binding RoleBanner}" FontSize="30" FontWeight="Bold" Foreground="#4FC3F7"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="{Binding Title}" FontSize="18" HorizontalAlignment="Center" TextWrapping="Wrap"/>
 
-        <ItemsControl ItemsSource="{Binding Exits}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:ExitOption">
-                    <Button Command="{Binding Drive}" Margin="6" Padding="16,12" MinWidth="120">
-                        <StackPanel Spacing="4" HorizontalAlignment="Center">
-                            <TextBlock Text="{Binding Label}" FontSize="22" HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding Detail}" Opacity="0.7" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-    </StackPanel>
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="24">
+                <views:CompassRose Grid.Column="0" Width="260" Height="260"
+                                   Heading="{Binding Heading}" DestinationBearing="{Binding DestinationBearing}"
+                                   ExitAngles="{Binding ExitAngles}"/>
+                <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding TimeLeft}" FontSize="26" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding Facing}" FontSize="18"/>
+                    <TextBlock Text="{Binding DestinationHint}" FontSize="18" Foreground="#FF8A80" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding Distance}" Opacity="0.8"/>
+                    <TextBlock Classes="hint" Classes.rejected="{Binding IsRejected}" Text="{Binding Hint}" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding Exits}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ExitOption">
+                        <Button Command="{Binding Drive}" Margin="6" Padding="16,12" MinWidth="130"
+                                AutomationProperties.Name="{Binding Label}">
+                            <StackPanel Spacing="4" HorizontalAlignment="Center">
+                                <TextBlock Text="{Binding Number}" FontSize="14" Opacity="0.7" HorizontalAlignment="Center"/>
+                                <TextBlock Text="{Binding Label}" FontSize="22" HorizontalAlignment="Center"/>
+                                <TextBlock Text="{Binding Detail}" Opacity="0.7" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

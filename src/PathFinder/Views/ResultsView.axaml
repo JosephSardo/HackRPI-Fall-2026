@@ -33,6 +33,9 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <!-- Cloud Navigator only: how the team's score was worked out (hidden otherwise) -->
+            <TextBlock Text="{Binding ScoreBreakdown}" TextWrapping="Wrap" Opacity="0.9"
+                       IsVisible="{Binding ScoreBreakdown, Converter={x:Static ObjectConverters.IsNotNull}}"/>
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Border Width="14" Height="14" CornerRadius="7" VerticalAlignment="Center"
                         Background="{Binding BestRouteSwatch}"/>
