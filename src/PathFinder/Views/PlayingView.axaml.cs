@@ -95,8 +95,9 @@ public partial class PlayingView : UserControl
         double dx = endPoint.X - startPoint.X;
         double dy = endPoint.Y - startPoint.Y;
 
-        double length = Math.Sqrt(dx * dx - dy * dy);
-        double angle = Math.Atan2(dy, dx) / Math.PI;
+        double length = Math.Sqrt(dx * dx + dy * dy);
+        double angleRadians = Math.Atan2(dy, dx);
+        double angleDegrees = angleRadians * 180 / Math.PI;
 
         int segmentCount = (int)Math.Ceiling(length / StreetSegmentSize);
 
@@ -107,15 +108,15 @@ public partial class PlayingView : UserControl
                 length
             );
 
-            double x = startPoint.X + Math.Cos(angle * Math.PI / 180) * distance;
-            double y = startPoint.Y + Math.Sin(angle * Math.PI / 180) * distance;
+            double x = startPoint.X + Math.Cos(angleRadians) * distance;
+            double y = startPoint.Y + Math.Sin(angleRadians) * distance;
 
             Image image = new()
             {
                 Source = _streetImage,
                 Width = StreetSegmentSize,
                 Height = StreetSegmentSize,
-                RenderTransform = new RotateTransform(angle),
+                RenderTransform = new RotateTransform(angleDegrees),
                 RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative)
             };
 
