@@ -13,11 +13,16 @@ namespace PathFinder.Services;
 /// </summary>
 public static class MapBuilder
 {
+    /// <summary>The on-screen credit the OpenStreetMap licence (ODbL) requires wherever its data is shown.</summary>
+    public const string OsmAttribution = "© OpenStreetMap contributors";
+
     /// <summary>Real streets from OpenStreetMap; see <see cref="StreetLoader.LoadMap"/> for what the map guarantees.</summary>
     public static async Task<CityMap> BuildAsync(double latitude, double longitude, double radiusMeters,
                                                  CancellationToken cancellationToken = default)
     {
         using var loader = new StreetLoader(latitude, longitude, radiusMeters);
-        return await loader.LoadMap(cancellationToken);
+        var map = await loader.LoadMap(cancellationToken);
+        map.Attribution = OsmAttribution;
+        return map;
     }
 }

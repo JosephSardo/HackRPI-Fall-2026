@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PathFinder.Models;
 using PathFinder.Network;
 using PathFinder.Services;
 
@@ -88,10 +90,107 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     /// </summary>
     public GameService Game { get; }
 
-    /// <summary>Call after changing the route so the Submit button updates.</summary>
-    public void RouteChanged() => OnPropertyChanged(nameof(CanSubmitRoute));
+    /// <summary>The map's required data credit ("© OpenStreetMap contributors"), or null for the test grid.</summary>
+    public string? MapAttribution => Game.CityMap.Attribution;
+
+    /// <summary>Call after changing the route so the Submit button, summary and map update.</summary>
+    public void RouteChanged()
+    {
+        OnPropertyChanged(nameof(CanSubmitRoute));
+        OnPropertyChanged(nameof(RouteSummary));
+        RouteUpdated?.Invoke();
+    }
 
     public bool CanSubmitRoute => Game.PathIsComplete() && !_finished;
+
+    // ---- building the route by clicking streets on the map
+
+    /// <summary>Raised whenever the route changes, so the map can redraw its highlight.</summary>
+    public event Action? RouteUpdated;
+
+    public int StartId => _round.StartId;
+    public int EndId => _round.EndId;
+
+    /// <summary>The route so far, as intersection IDs from the start.</summary>
+    public IReadOnlyList<int> RouteNodeIds => Game.GetPlayerPath();
+
+    public string RouteSummary => RouteNodeIds.Count < 2
+        ? "Click a street touching the start to begin your route."
+        : $"Your route: {RouteNodeIds.Count - 1} streets, {Game.PathLength():0} m" +
+          (Game.PathIsComplete() ? " (destination reached)" : "");
+
+    /// <summary>Why the last click did nothing (or what to do next); null when there's nothing to say.</summary>
+    [ObservableProperty] private string? _routeHint;
+
+    /// <summary>
+    /// A street was clicked: clicking your last street again takes it back; clicking a street that
+    /// touches the end of your route extends it; anything else explains why not.
+    /// </summary>
+    public void ClickStreet(Street street)
+    {
+        if (_finished) return;
+        var path = Game.GetPlayerPath();
+
+        if (path.Count >= 2 && Joins(street, path[^2], path[^1]))
+        {
+            Game.RemoveStreetFromRoute(street);
+            RouteHint = null;
+        }
+        else if (Game.PathIsComplete())
+        {
+            RouteHint = "You've reached the destination. Submit, or click your last street to undo it.";
+            return;
+        }
+        else if (Game.AddStreetToRoute(street))
+        {
+            RouteHint = Game.PathIsComplete() ? "Destination reached! Submit your route." : null;
+        }
+        else
+        {
+            RouteHint = path.Count < 2
+                ? "Start from the green intersection: pick a street that touches it."
+                : "That street doesn't connect to the end of your route (the yellow ring).";
+            return;
+        }
+        RouteChanged();
+    }
+
+    /// <summary>True if clicking this street would change the route (used for the hover highlight).</summary>
+    public bool CanClick(Street street)
+    {
+        if (_finished) return false;
+        var path = Game.GetPlayerPath();
+        if (path.Count >= 2 && Joins(street, path[^2], path[^1])) return true; // undo
+        if (Game.PathIsComplete()) return false;
+        return street.Start.Id == path[^1] || street.End.Id == path[^1];
+    }
+
+    [RelayCommand]
+    private void UndoStreet()
+    {
+        var path = Game.GetPlayerPath();
+        if (_finished || path.Count < 2) return;
+        if (StreetBetween(path[^2], path[^1]) is { } last) ClickStreet(last);
+    }
+
+    [RelayCommand]
+    private void ClearRoute()
+    {
+        if (_finished) return;
+        Game.SetStart(_round.StartId); // resets the route
+        Game.SetEnd(_round.EndId);
+        RouteHint = null;
+        RouteChanged();
+    }
+
+    static bool Joins(Street street, int a, int b) =>
+        (street.Start.Id == a && street.End.Id == b) || (street.Start.Id == b && street.End.Id == a);
+
+    Street? StreetBetween(int a, int b)
+    {
+        var map = Game.CityMap;
+        return map.Graph.TryGetEdge(map.GetIntersection(a), map.GetIntersection(b), out var edge) ? edge.Tag : null;
+    }
 
     /// <summary>Submit the route built on the map (the real Submit button for the map UI).</summary>
     [RelayCommand] private Task SubmitRouteAsync() => CanSubmitRoute ? SubmitAsync(Game.GetPlayerPath()) : Task.CompletedTask;
@@ -101,26 +200,6 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     public string MapInfo => _client.Map is { } map
         ? $"{map.Name}: {map.Graph.VertexCount} intersections, {map.Graph.EdgeCount} streets"
         : "No map received";
-
-    // Placeholder buttons until the map view exists: they submit real routes on this player's copy of the map.
-    [RelayCommand] private Task SubmitBestAsync() => SubmitAsync(BestRoute());
-    [RelayCommand] private Task SubmitLongerAsync() => SubmitAsync(LongerRoute());
-
-    IReadOnlyList<int> BestRoute() => _client.Map is { } map
-        ? Network.CityMapRoundRules.BestRoute(map, _round.StartId, _round.EndId).NodeIds
-        : [];
-
-    /// <summary>The best route with a detour first: out to a neighbour of the start and back.</summary>
-    IReadOnlyList<int> LongerRoute()
-    {
-        var best = BestRoute();
-        if (_client.Map is not { } map || best.Count < 2) return best;
-        var start = map.GetIntersection(_round.StartId);
-        var neighbour = map.Graph.AdjacentEdges(start)
-            .Select(e => e.Source.Id == start.Id ? e.Target.Id : e.Source.Id)
-            .FirstOrDefault(id => id != best[1], best[1]);
-        return [_round.StartId, neighbour, .. best];
-    }
 
     async Task SubmitAsync(IReadOnlyList<int> nodeIds)
     {
@@ -155,21 +234,48 @@ public partial class ResultsViewModel : CountdownViewModel
 {
     readonly bool _isLastRound;
 
-    public ResultsViewModel(RoundResultsMessage results, string? myId, bool isLastRound)
+    // Distinct from the best route (green) and the start/end rings (green/red).
+    static readonly string[] PlayerColors =
+        ["#FFC83D", "#4FC3F7", "#BA68C8", "#FF8A65", "#F06292", "#AED581", "#90A4AE", "#FFD180"];
+    const string BestRouteColor = "#3DDC84";
+
+    public ResultsViewModel(RoundResultsMessage results, string? myId, bool isLastRound, CityMap? map = null)
         : base(new RoundClock(TimeSpan.FromSeconds(results.SecondsUntilNext)))
     {
         _isLastRound = isLastRound;
         Title = $"Round {results.RoundNumber} results";
-        Rows = results.Results.Select(r =>
+        Map = map;
+
+        // One colour per player, used for both their row and their line on the map.
+        var colorOf = results.Results.Select((r, i) => (r.PlayerId, Color: PlayerColors[i % PlayerColors.Length]))
+                                     .ToDictionary(x => x.PlayerId, x => x.Color);
+        Rows = results.Results.Select(r => new ResultRow(
             $"#{r.Rank}  {r.Name}{(r.PlayerId == myId ? " (you)" : "")}  " +
-            (r.Submitted ? $"{r.Score:0.#} points" : "no path, 0 points")).ToList();
-        BestRoute = $"Best route: {string.Join(" -> ", results.OptimalNodeIds)} (length {results.OptimalLength:0.#})";
+            (r.Submitted ? $"{r.Score:0.#} points" : "no path, 0 points"),
+            Brush.Parse(colorOf[r.PlayerId]))).ToList();
+        BestRoute = results.OptimalNodeIds.Count < 2
+            ? "No best route to show."
+            : $"Best route (green band): {results.OptimalNodeIds.Count - 1} streets, {results.OptimalLength:0} m";
+
+        // Best route first (a wide translucent band underneath), then everyone's route, yours last and thickest.
+        var routes = new List<Views.RouteLine> { new(results.OptimalNodeIds, "#663DDC84", 14) };
+        routes.AddRange(results.Results
+            .Where(r => r.Submitted && r.NodeIds.Count >= 2)
+            .OrderBy(r => r.PlayerId == myId)
+            .Select(r => new Views.RouteLine(r.NodeIds, colorOf[r.PlayerId], r.PlayerId == myId ? 6 : 4,
+                                             Dashed: r.PlayerId != myId)));
+        MapRoutes = routes;
         Tick();
     }
 
     public string Title { get; }
-    public IReadOnlyList<string> Rows { get; }
+    public IReadOnlyList<ResultRow> Rows { get; }
     public string BestRoute { get; }
+    public IBrush BestRouteSwatch { get; } = Brush.Parse(BestRouteColor);
+
+    /// <summary>This player's copy of the round's map (null if unavailable), and the routes to draw on it.</summary>
+    public CityMap? Map { get; }
+    public IReadOnlyList<Views.RouteLine> MapRoutes { get; }
 
     protected override void Tick()
     {
@@ -177,6 +283,9 @@ public partial class ResultsViewModel : CountdownViewModel
         TimeLeft = seconds <= 0 ? "Starting..." : $"{(_isLastRound ? "Final standings" : "Next round")} in {seconds:0}s";
     }
 }
+
+/// <summary>A results line plus the colour of that player's route on the map.</summary>
+public sealed record ResultRow(string Text, IBrush Color);
 
 /// <summary>Final standings, then back to the lobby.</summary>
 public partial class SummaryViewModel(MatchOverMessage over, string? myId, Action backToLobby) : ViewModelBase
