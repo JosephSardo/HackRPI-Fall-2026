@@ -33,6 +33,9 @@
                        IsVisible="{Binding HostWarning, Converter={x:Static ObjectConverters.IsNotNull}}"/>
             <TextBlock Text="{Binding TimeLeft}" FontSize="20"/>
             <TextBlock Text="{Binding Submissions}" Opacity="0.7"/>
+            <TextBlock Text="{Binding RouteSummary}"/>
+            <TextBlock Text="{Binding RouteHint}" Foreground="#E0A030" TextWrapping="Wrap"
+                       IsVisible="{Binding RouteHint, Converter={x:Static ObjectConverters.IsNotNull}}"/>
         </StackPanel>
 
         <!-- Map -->
@@ -46,6 +49,17 @@
         <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
                     Spacing="8">
+            <Button Content="Submit route"
+                    Command="{Binding SubmitRouteCommand}"
+                    IsEnabled="{Binding CanSubmitRoute}"/>
+
+            <Button Content="Undo"
+                    Command="{Binding UndoStreetCommand}"/>
+
+            <Button Content="Clear"
+                    Command="{Binding ClearRouteCommand}"/>
+
+            <!-- Placeholders from before street selection existed; remove before the demo. -->
             <Button Content="Submit best route"
                     Command="{Binding SubmitBestCommand}"/>
 
