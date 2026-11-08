@@ -60,7 +60,21 @@ public static class NavigatorScreens
     public static IReadOnlyList<Compass.Exit> ExitsAt(CityMap map, int nodeId, double heading, int endId) =>
         nodeId == endId ? [] : Compass.Exits(map, nodeId, heading);
 
-    public static string ExitText(Compass.Exit exit, int index) => $"{index + 1}.  {exit.Label}  ({exit.Length:0} m)";
+    public static string ExitText(CityMap map, int fromId, Compass.Exit exit, int index) =>
+        $"{index + 1}.  {exit.Label}{Onto(map, fromId, exit.NodeId)}  ({exit.Length:0} m)";
+
+    /// <summary>" onto Congress Street" for the street between two intersections, or "" if it has no name.</summary>
+    public static string Onto(CityMap map, int fromId, int toId)
+    {
+        try
+        {
+            return map.Graph.TryGetEdge(map.GetIntersection(fromId), map.GetIntersection(toId), out var edge)
+                   && !string.IsNullOrWhiteSpace(edge.Tag.Name)
+                ? $" onto {edge.Tag.Name}"
+                : "";
+        }
+        catch (KeyNotFoundException) { return ""; }
+    }
 
     /// <summary>Results screen line for this mode: how the team's score was worked out.</summary>
     public static string ScoreBreakdown(NavigatorScoreMessage s)
@@ -165,7 +179,7 @@ public partial class DriverViewModel : CountdownViewModel, IFollowsDriver
                           Compass.RoughDirection(Compass.Relative(heading, bearing));
 
         var exits = NavigatorScreens.ExitsAt(_map, nodeId, heading, _round.EndId);
-        Exits = exits.Select((e, i) => new ExitOption($"{i + 1}", e.Label, $"{e.Length:0} m",
+        Exits = exits.Select((e, i) => new ExitOption($"{i + 1}", e.Label + NavigatorScreens.Onto(_map, nodeId, e.NodeId), $"{e.Length:0} m",
                                                       new RelayCommand(() => Drive(e.NodeId), CanDrive)))
                      .ToList();
         ExitAngles = exits.Select(e => e.Relative).ToList();
@@ -176,7 +190,6 @@ public partial class DriverViewModel : CountdownViewModel, IFollowsDriver
                 1 => "Dead end: the only way is back.",
                 _ => DefaultHint,
             };
-        // TODO (navigator mode): show street names once the map carries them (another branch adds Street.Name).
     }
 
     bool CanDrive() => !IsWaiting && !_arrived && !Clock.IsUp;
@@ -282,7 +295,7 @@ public partial class NavigatorViewModel : CountdownViewModel, IFollowsDriver
             ? $"{DriverName} has arrived!"
             : $"{DriverName} is facing {Compass.CompassPoint(heading)} ({heading:0}°), {_trail.Count - 1} streets so far";
         DriverExits = NavigatorScreens.ExitsAt(_map, driverAt, heading, _round.EndId)
-            .Select(NavigatorScreens.ExitText).ToList();
+            .Select((e, i) => NavigatorScreens.ExitText(_map, driverAt, e, i)).ToList();
     }
 
     protected override void Tick() => TimeLeft = Clock.IsUp ? "Time's up! Waiting for results..." : Clock.Text;

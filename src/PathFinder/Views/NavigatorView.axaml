@@ -9,11 +9,12 @@
 
     <!-- Cloud Navigator, the view from the clouds. Bindings are the contract.
          Read-only on purpose: the navigator can't click anything, they talk. -->
-    <Grid Margin="16" ColumnDefinitions="*,Auto">
+    <!-- Layout switches with the window width (see the code-behind): side by side when wide, map above the panel when narrow. -->
+    <Grid x:Name="Root" Margin="16" ColumnDefinitions="*,340">
         <!-- Whole map: the driver's trail (yellow), start (green ring), destination (red ring), driver (blue dot + arrow) -->
-        <views:RouteMap Grid.Column="0" Map="{Binding Map}" Routes="{Binding Routes}" Markers="{Binding Markers}" MinHeight="300"/>
+        <views:RouteMap x:Name="MapView" Grid.Column="0" ClipToBounds="True" Map="{Binding Map}" Routes="{Binding Routes}" Markers="{Binding Markers}" MinHeight="200"/>
 
-        <ScrollViewer Grid.Column="1" Width="340" Margin="16,0,0,0" VerticalAlignment="Center"
+        <ScrollViewer x:Name="Panel" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
                       HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="12">
                 <TextBlock Text="{Binding RoleBanner}" FontSize="24" FontWeight="Bold" Foreground="#FFC83D" TextWrapping="Wrap"/>
