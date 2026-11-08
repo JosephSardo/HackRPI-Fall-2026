@@ -38,7 +38,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
 
     /// <summary>Where the game's map is centered, typed as "latitude, longitude" (host only).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(GameLocation), nameof(LocationError))]
+    [NotifyPropertyChangedFor(nameof(GameLocation), nameof(LocationError), nameof(CanStartMatch))]
     private string _location = "";
 
     /// <summary>The parsed <see cref="Location"/>, or null if it's empty or invalid.</summary>
@@ -79,7 +79,15 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     public bool IsInMenu => !IsInLobby;
 
     /// <summary>Host's Start button: the host refuses to start with fewer than <see cref="Protocol.MinPlayers"/> players.</summary>
-    public bool CanStartMatch => !MatchStarted && Players.Count >= Protocol.MinPlayers;
+    public bool CanStartMatch =>
+        !MatchStarted && !IsLoadingMap && LocationError is null && Players.Count >= Protocol.MinPlayers;
+
+    /// <summary>Host: true while the map for the next match is being loaded (after clicking Start).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartMatch), nameof(StartButtonText))]
+    private bool _isLoadingMap;
+
+    public string StartButtonText => IsLoadingMap ? "Loading map..." : "Start match";
     public bool NeedsMorePlayers => IsHost && Players.Count < Protocol.MinPlayers;
 
     public ObservableCollection<string> Players { get; } = [];
@@ -89,16 +97,13 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     {
         if (!ValidateName()) return;
         IsBusy = true;
-        Status = "Loading map...";
+        Status = "Starting game...";
         try
         {
-            var (map, mapWarning) = await HostMapLoader.LoadAsync();
-            Status = "Starting game...";
-            _host = new GameHost(map: map);
+            _host = new GameHost();
             await ConnectAsync("127.0.0.1", _host.Port, _host.HostKey);
             IsHost = true;
-            MapInfo = $"Map: {map.Name} ({map.Graph.VertexCount} intersections, {map.Graph.EdgeCount} streets)";
-            MapWarning = mapWarning;
+            MapInfo = "The map is loaded around Location when you start the match (RPI campus if it's empty).";
             var addresses = NetInfo.LanAddresses();
             GameCode = addresses.Select(Network.GameCode.FromAddress).FirstOrDefault(code => code is not null);
             HostAddresses = addresses.Count == 0
@@ -157,9 +162,22 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
     [RelayCommand]
     private async Task StartMatchAsync()
     {
-        if (_client is null) return;
-        try { await _client.StartMatchAsync((int)(Rounds ?? Protocol.DefaultRounds), (int)(RoundSeconds ?? Protocol.DefaultRoundSeconds)); }
+        if (_client is null || _host is null) return;
+        IsLoadingMap = true;
+        try
+        {
+            // The map is built around the lobby's Location, fresh for every match.
+            var at = GameLocation ?? new GeoPoint(HostMapLoader.DefaultLatitude, HostMapLoader.DefaultLongitude);
+            var (map, warning) = await HostMapLoader.LoadAsync(at.Latitude, at.Longitude);
+            if (_client is null || _host is null) return; // left the lobby while loading
+
+            _host.UseMap(map);
+            MapInfo = $"Map: {map.Name} ({map.Graph.VertexCount} intersections, {map.Graph.EdgeCount} streets) around {at.ToCoordinateString()}";
+            MapWarning = warning;
+            await _client.StartMatchAsync((int)(Rounds ?? Protocol.DefaultRounds), (int)(RoundSeconds ?? Protocol.DefaultRoundSeconds));
+        }
         catch (Exception ex) { Status = $"Couldn't start the match: {ex.Message}"; }
+        finally { IsLoadingMap = false; }
     }
 
     /// <summary>
@@ -306,6 +324,7 @@ public partial class LobbyViewModel(Action<ViewModelBase?> showScreen) : ViewMod
         GameCode = null;
         MapInfo = null;
         MapWarning = null;
+        IsLoadingMap = false;
         if (_screen is not null) Show(null); // back to the lobby screen
     }
 

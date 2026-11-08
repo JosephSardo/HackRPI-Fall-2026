@@ -14,15 +14,16 @@ namespace PathFinder.Network;
 /// </summary>
 public static class HostMapLoader
 {
-    // Where the real map is built around (RPI campus). TODO: let the host pick a place in the lobby.
-    public const double Latitude = 42.7284, Longitude = -73.6918, RadiusMeters = 300;
+    // Used when the host leaves the lobby's Location empty: RPI campus.
+    public const double DefaultLatitude = 42.7284, DefaultLongitude = -73.6918;
+    public const double RadiusMeters = 300;
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
 
-    /// <summary>The map to host with, plus a warning to show the host if it's the fallback.</summary>
+    /// <summary>The map around a location, plus a warning to show the host if it's the fallback.</summary>
     public static async Task<(CityMap Map, string? Warning)> LoadAsync(
-        Func<CancellationToken, Task<CityMap>>? build = null)
+        double latitude, double longitude, Func<CancellationToken, Task<CityMap>>? build = null)
     {
-        build ??= ct => MapBuilder.BuildAsync(Latitude, Longitude, RadiusMeters, ct);
+        build ??= ct => MapBuilder.BuildAsync(latitude, longitude, RadiusMeters, ct);
         try
         {
             using var timeout = new CancellationTokenSource(Timeout);
