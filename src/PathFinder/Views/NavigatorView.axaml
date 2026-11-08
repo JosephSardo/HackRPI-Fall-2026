@@ -12,7 +12,7 @@
     <!-- Layout switches with the window width (see the code-behind): side by side when wide, map above the panel when narrow. -->
     <Grid x:Name="Root" Margin="16" ColumnDefinitions="*,340">
         <!-- Whole map: the driver's trail (yellow), start (green ring), destination (red ring), driver (blue dot + arrow) -->
-        <views:RouteMap x:Name="MapView" Grid.Column="0" ClipToBounds="True" Map="{Binding Map}" Routes="{Binding Routes}" Markers="{Binding Markers}" MinHeight="200"/>
+        <views:RouteMap x:Name="MapView" Grid.Column="0" ClipToBounds="True" Reveal="False" Map="{Binding Map}" Routes="{Binding Routes}" Markers="{Binding Markers}" MinHeight="200"/>
 
         <ScrollViewer x:Name="Panel" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
                       HorizontalScrollBarVisibility="Disabled">

@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PathFinder.ViewModels"
              xmlns:sys="using:System"
+             xmlns:views="using:PathFinder.Views"
              x:Class="PathFinder.Views.PlayingView"
              x:DataType="vm:PlayingViewModel"
              Background="#1d1945"
@@ -32,8 +33,19 @@
                 </Animation>
             </Style.Animations>
         </Style>
+
+        <!-- Submit breathes (opacity: Avalonia 12 can't animate RenderTransform) once the route reaches the destination, so it's obvious what to do next -->
+        <Style Selector="Button.ready">
+            <Style.Animations>
+                <Animation Duration="0:0:1.4" IterationCount="Infinite" Easing="SineEaseInOut">
+                    <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1"/></KeyFrame>
+                    <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.72"/></KeyFrame>
+                    <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1"/></KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
     </UserControl.Styles>
-    
+
     <!-- Placeholder layout: restyle freely; bindings are the contract. -->
     <Grid Margin="16" RowDefinitions="Auto,*,Auto" ClipToBounds="True">
         <!-- Load background image -->
@@ -43,23 +55,26 @@
                Stretch="UniformToFill"/>
 
         <!-- Header information -->
+        <!-- Rows rise in one after another (Motion.EnterDelay, in ms) -->
         <StackPanel Grid.Row="0" Spacing="8">
             <TextBlock Text="{Binding Title}"
                     FontSize="24"
-                    FontWeight="Bold"/>
+                    FontWeight="Bold"
+                    views:Motion.PopDelay="0"
+                    HorizontalAlignment="Left"/>
 
-            <TextBlock Text="{Binding Route}"/>
-            <TextBlock Text="{Binding MapInfo}" Opacity="0.7"/>
+            <TextBlock Text="{Binding Route}" views:Motion.EnterDelay="120"/>
+            <TextBlock Text="{Binding MapInfo}" Opacity="0.7" views:Motion.EnterDelay="170"/>
             <TextBlock Text="{Binding HostWarning}" TextWrapping="Wrap" Foreground="#E0A030"
                        IsVisible="{Binding HostWarning, Converter={x:Static ObjectConverters.IsNotNull}}"/>
             <!-- Draining time bar: changes colour with the countdown -->
-            <ProgressBar Minimum="0" Maximum="100" Value="{Binding TimePercent}" Height="14"
+            <ProgressBar views:Motion.EnterDelay="220" Minimum="0" Maximum="100" Value="{Binding TimePercent}" Height="14"
                          Foreground="{Binding TimerBrush}" Background="#33FFFFFF" CornerRadius="7"/>
-            <TextBlock Text="{Binding Submissions}" Opacity="0.7"/>
-            <TextBlock Text="{Binding RouteSummary}"/>
+            <TextBlock Text="{Binding Submissions}" Opacity="0.7" views:Motion.EnterDelay="270"/>
+            <TextBlock Text="{Binding RouteSummary}" views:Motion.EnterDelay="320"/>
             <TextBlock Text="{Binding HoverInfo}" Opacity="0.8" FontStyle="Italic"
                        IsVisible="{Binding HoverInfo, Converter={x:Static ObjectConverters.IsNotNull}}"/>
-            <TextBlock Text="{Binding RouteHint}" Foreground="#E0A030" TextWrapping="Wrap"
+            <TextBlock x:Name="RouteHintText" Text="{Binding RouteHint}" Foreground="#E0A030" TextWrapping="Wrap"
                        IsVisible="{Binding RouteHint, Converter={x:Static ObjectConverters.IsNotNull}}"/>
         </StackPanel>
 
@@ -90,10 +105,13 @@
         <!-- Buttons -->
         <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
-                    Spacing="8">
+                    Spacing="8"
+                    views:Motion.EnterDelay="380">
             <Button Content="Submit route"
                     Command="{Binding SubmitRouteCommand}"
-                    IsEnabled="{Binding CanSubmitRoute}"/>
+                    IsEnabled="{Binding CanSubmitRoute}"
+                    Classes.accent="{Binding CanSubmitRoute}"
+                    Classes.ready="{Binding CanSubmitRoute}"/>
 
             <Button Content="Undo"
                     Command="{Binding UndoStreetCommand}"/>
