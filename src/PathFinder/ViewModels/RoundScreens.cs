@@ -89,6 +89,9 @@ public partial class PlayingViewModel : RoundInProgressViewModel
     /// </summary>
     public GameService Game { get; }
 
+    /// <summary>The map's required data credit ("© OpenStreetMap contributors"), or null for the test grid.</summary>
+    public string? MapAttribution => Game.CityMap.Attribution;
+
     /// <summary>Call after changing the route so the Submit button, summary and map update.</summary>
     public void RouteChanged()
     {

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using PathFinder.Models;
+using PathFinder.Services;
 
 namespace PathFinder.Network;
 
@@ -28,7 +29,10 @@ public static class MapCache
         try
         {
             var data = JsonSerializer.Deserialize<MapData>(File.ReadAllText(file), Json);
-            return data is null ? null : MapDataConverter.ToCityMap(data);
+            if (data is null) return null;
+            var map = MapDataConverter.ToCityMap(data);
+            map.Attribution ??= MapBuilder.OsmAttribution; // only downloads are cached; older files predate the field
+            return map;
         }
         catch (Exception ex)
         {
