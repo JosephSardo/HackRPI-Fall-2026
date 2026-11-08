@@ -287,7 +287,8 @@ public partial class ResultsViewModel : CountdownViewModel
             Brush.Parse(colorOf[r.PlayerId]))).ToList();
         BestRoute = results.OptimalNodeIds.Count < 2
             ? "No best route to show."
-            : $"Best route (green band): {results.OptimalNodeIds.Count - 1} streets, {results.OptimalLength:0} m";
+            : $"Best route (green band): {results.OptimalNodeIds.Count - 1} streets, {results.OptimalLength:0} m" +
+              Via(map, results.OptimalNodeIds);
 
         // Best route first (a wide translucent band underneath), then everyone's route, yours last and thickest.
         var routes = new List<Views.RouteLine> { new(results.OptimalNodeIds, "#663DDC84", 14) };
@@ -298,6 +299,25 @@ public partial class ResultsViewModel : CountdownViewModel
                                              Dashed: r.PlayerId != myId)));
         MapRoutes = routes;
         Tick();
+    }
+
+    /// <summary>" via Congress Street, 8th Street": the route's street names in order, or "" if none are known.</summary>
+    static string Via(CityMap? map, IReadOnlyList<int> nodeIds, int maxNames = 4)
+    {
+        if (map is null) return "";
+        var names = new List<string>();
+        for (var i = 0; i + 1 < nodeIds.Count; i++)
+        {
+            try
+            {
+                var (a, b) = (map.GetIntersection(nodeIds[i]), map.GetIntersection(nodeIds[i + 1]));
+                if (map.Graph.TryGetEdge(a, b, out var edge) && edge.Tag.Name is { } name && names.LastOrDefault() != name)
+                    names.Add(name);
+            }
+            catch (KeyNotFoundException) { return ""; } // results from a different map: say nothing
+        }
+        if (names.Count == 0) return "";
+        return " via " + string.Join(", ", names.Take(maxNames)) + (names.Count > maxNames ? ", ..." : "");
     }
 
     public string Title { get; }

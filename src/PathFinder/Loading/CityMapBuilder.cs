@@ -31,7 +31,7 @@ internal static class CityMapBuilder
     /// </summary>
     private static CityMap Assemble(StreetNetwork network, SearchArea area,
                                     IEnumerable<long> intersectionIds,
-                                    IEnumerable<KeyValuePair<(long A, long B), double>> streets)
+                                    IEnumerable<KeyValuePair<(long A, long B), TracedStreet>> streets)
     {
         var map = new CityMap(area.Name);
 
@@ -46,8 +46,8 @@ internal static class CityMapBuilder
         }
 
         var nextStreetId = 1;
-        foreach (var ((a, b), length) in streets.OrderBy(s => s.Key))
-            map.AddStreet(new Street(nextStreetId++, length, intersections[a], intersections[b]));
+        foreach (var ((a, b), street) in streets.OrderBy(s => s.Key))
+            map.AddStreet(new Street(nextStreetId++, street.Length, intersections[a], intersections[b]) { Name = street.Name });
 
         return map;
     }
