@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PathFinder.ViewModels"
              xmlns:sys="using:System"
+             xmlns:net="using:PathFinder.Network"
              x:Class="PathFinder.Views.LobbyView"
              x:DataType="vm:LobbyViewModel"
              Background="#1d1945"
@@ -67,7 +68,7 @@
             </ItemsControl>
 
             <!-- Match settings: only the host picks them -->
-            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" IsVisible="{Binding IsHost}" Margin="0,8,0,0">
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" IsVisible="{Binding IsHost}" Margin="0,8,0,0">
                 <TextBlock Text="Rounds" VerticalAlignment="Center" Margin="0,0,12,6"/>
                 <NumericUpDown Grid.Column="1" Value="{Binding Rounds}" Minimum="{Binding MinRounds}" Maximum="{Binding MaxRounds}"
                                Increment="1" FormatString="0" Margin="0,0,0,6" IsEnabled="{Binding !MatchStarted}"/>
@@ -75,18 +76,40 @@
                 <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding RoundSeconds}" Minimum="{Binding MinRoundSeconds}"
                                Maximum="{Binding MaxRoundSeconds}" Increment="15" FormatString="0" IsEnabled="{Binding !MatchStarted}"/>
 
+                <!-- Demo spots: fill in Location and Radius; each has a map bundled with the app, so it loads instantly -->
+                <TextBlock Grid.Row="2" Text="Presets" VerticalAlignment="Center" Margin="0,6,12,0"/>
+                <ItemsControl Grid.Row="2" Grid.Column="1" ItemsSource="{Binding Presets}" Margin="0,6,0,0"
+                              IsEnabled="{Binding !MatchStarted}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="net:DemoMap">
+                            <Button Content="{Binding Name}" Margin="0,0,6,6" Padding="8,3" FontSize="12"
+                                    Command="{Binding $parent[UserControl].((vm:LobbyViewModel)DataContext).UsePresetCommand}"
+                                    CommandParameter="{Binding}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
                 <!-- Location: type coordinates, or open the map to pick them -->
-                <TextBlock Grid.Row="2" Text="Location" VerticalAlignment="Center" Margin="0,6,12,0"/>
-                <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,6,0,0" IsEnabled="{Binding !MatchStarted}">
+                <TextBlock Grid.Row="3" Text="Location" VerticalAlignment="Center" Margin="0,6,12,0"/>
+                <Grid Grid.Row="3" Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,6,0,0" IsEnabled="{Binding !MatchStarted}">
                     <TextBox Text="{Binding Location}" PlaceholderText="Latitude, longitude"/>
                     <Button Grid.Column="1" Content="Pick on map" Command="{Binding PickLocationOnMapCommand}" Margin="8,0,0,0"/>
                 </Grid>
-                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LocationError}" FontSize="12" Foreground="#C04000"
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding LocationError}" FontSize="12" Foreground="#C04000"
                            TextWrapping="Wrap" Margin="0,4,0,0"
                            IsVisible="{Binding LocationError, Converter={x:Static ObjectConverters.IsNotNull}}"/>
-                <TextBlock Grid.Row="4" Text="Radius" VerticalAlignment="Center" Margin="0,12,0,0" />
-                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding RadiusMeters}" PlaceholderText="Radius"/>
+                <TextBlock Grid.Row="5" Text="Radius (m)" VerticalAlignment="Center" Margin="0,6,12,0" />
+                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding RadiusMeters}" PlaceholderText="Radius" Margin="0,6,0,0"
+                         IsEnabled="{Binding !MatchStarted}"/>
             </Grid>
+            <CheckBox Content="Practice (solo allowed)" IsChecked="{Binding PracticeMode}"
+                      IsVisible="{Binding IsHost}" IsEnabled="{Binding !MatchStarted}"
+                      ToolTip.Tip="Lets the host start a competitive match alone. Cloud Navigator still needs two players."/>
 
             <!-- Cloud Navigator (co-op) placeholder controls: mode (host only) and roles (everyone) -->
             <StackPanel Spacing="6" Margin="0,8,0,0">
@@ -106,7 +129,7 @@
             </StackPanel>
             <TextBlock Text="Waiting for the host to start the match..." Opacity="0.7"
                        IsVisible="{Binding !IsHost}"/>
-            <TextBlock Text="Waiting for at least one more player to join..." Opacity="0.7"
+            <TextBlock Text="Waiting for at least one more player to join (or tick Practice to play alone)..." Opacity="0.7" TextWrapping="Wrap"
                        IsVisible="{Binding NeedsMorePlayers}"/>
         </StackPanel>
 
